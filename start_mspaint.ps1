@@ -177,7 +177,7 @@ if (Test-Path -LiteralPath $mspaintClassic) {
     # -------------------------------------------------------------------
     # Path 1: classic desktop Paint via CreateProcess (truly hidden).
     # -------------------------------------------------------------------
-    Write-Host "Starting classic mspaint.exe (hidden) via CreateProcess..."
+    # Write-Host "Starting classic mspaint.exe (hidden) via CreateProcess..."
 
     $startupInfo = New-Object Win32.NativeMethods+STARTUPINFO
     $startupInfo.cb = [System.Runtime.InteropServices.Marshal]::SizeOf($startupInfo)
@@ -225,7 +225,7 @@ else {
     # Raw CreateProcess cannot launch packaged apps (ERROR_INVALID_NAME / 123).
     # -------------------------------------------------------------------
     $appUserModelId = 'Microsoft.Paint_8wekyb3d8bbwe!App'
-    Write-Host "Classic mspaint.exe not found; activating packaged Paint ($appUserModelId)..."
+    # Write-Host "Classic mspaint.exe not found; activating packaged Paint ($appUserModelId)..."
 
     [uint32]$activatedPid = [PackagedAppLauncher]::Activate($appUserModelId, $null)
     $targetPid = [int]$activatedPid
@@ -266,12 +266,12 @@ else {
     }
 }
 
-Write-Host "Paint started. PID = $targetPid. Waiting 60 seconds..."
+# Write-Host "Paint started. PID = $targetPid. Waiting 60 seconds..."
 
-# Wait 60 seconds while the Paint process runs.
-Start-Sleep -Seconds 60
+# Wait 5 seconds while the Paint process runs.
+Start-Sleep -Seconds 5
 
-Write-Host "Closing Paint using the process handle..."
+# Write-Host "Closing Paint using the process handle..."
 
 # Terminate the process via its handle.
 $terminated = [Win32.NativeMethods]::TerminateProcess($hProcess, 0)
@@ -280,7 +280,7 @@ if (-not $terminated) {
     Write-Warning "TerminateProcess failed with Win32 error code $err."
 }
 else {
-    Write-Host "Paint terminated successfully."
+    # Write-Host "Paint terminated successfully."
 }
 
 # Always release the handles we hold to avoid leaks.

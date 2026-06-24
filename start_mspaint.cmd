@@ -1,0 +1,1 @@
+powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File .\start_mspaint.ps1
