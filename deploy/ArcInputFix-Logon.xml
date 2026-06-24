@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<!--
+  ArcInputFix logon task (reference template).
+
+  Runs ArcInputFix.exe hidden in the interactive user's session at every logon,
+  for any member of the Users group, with least privilege - correct for the
+  default in-process pointer/DirectManipulation warm-up.
+
+  If the confirmed root-cause trigger is starting a SERVICE (which needs
+  elevation), use Install-ArcInputFix.ps1 -Action Service -ServiceName <name>,
+  which registers an elevated SYSTEM variant instead of importing this file.
+
+  Adjust the <Command> path to where ArcInputFix.exe is deployed, or just use
+  Install-ArcInputFix.ps1 which fills it in automatically.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Workaround for Intel Arc (Core Ultra 268V) non-client mouse bug: warms up the input subsystem at logon.</Description>
+    <URI>\ArcInputFix</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <GroupId>S-1-5-32-545</GroupId>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>true</Hidden>
+    <ExecutionTimeLimit>PT1M</ExecutionTimeLimit>
+    <Priority>5</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Program Files\ArcInputFix\ArcInputFix.exe</Command>
+      <Arguments>--pointer-dm</Arguments>
+    </Exec>
+  </Actions>
+</Task>

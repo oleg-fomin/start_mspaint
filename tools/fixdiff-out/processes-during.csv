@@ -1,0 +1,307 @@
+"Id","ProcessName","Path"
+"10432","acrotray","C:\Program Files\Adobe\Acrobat DC\Acrobat\AcroTray.exe"
+"25500","acrotray","C:\Program Files\Adobe\Acrobat DC\Acrobat\AcroTray.exe"
+"17036","Adobe Desktop Service","C:\Program Files (x86)\Common Files\Adobe\Adobe Desktop Common\ADS\Adobe Desktop Service.exe"
+"28568","AdobeCollabSync","C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeCollabSync.exe"
+"28692","AdobeCollabSync","C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeCollabSync.exe"
+"15488","AdobeIPCBroker","C:\Program Files (x86)\Common Files\Adobe\Adobe Desktop Common\IPCBox\AdobeIPCBroker.exe"
+"5140","AdobeUpdateService",
+"10388","AggregatorHost",
+"14660","AppActions","C:\windows\SystemApps\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\AppActions.exe"
+"18552","ApplicationFrameHost","C:\windows\system32\ApplicationFrameHost.exe"
+"3344","armsvc",
+"24952","audiodg",
+"16244","backgroundTaskHost","C:\windows\system32\backgroundTaskHost.exe"
+"24524","CCXProcess","C:\Program Files\Adobe\Adobe Creative Cloud Experience\CCXProcess.exe"
+"30324","ClickToDo","C:\windows\SystemApps\MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy\ClickToDo.exe"
+"22968","cmd","C:\windows\system32\cmd.exe"
+"944","conhost","C:\windows\system32\conhost.exe"
+"5752","conhost","C:\windows\system32\conhost.exe"
+"8344","conhost",
+"8348","conhost",
+"10072","conhost",
+"18880","conhost",
+"19880","conhost",
+"19964","conhost",
+"19976","conhost",
+"19992","conhost",
+"20016","conhost",
+"20032","conhost",
+"20108","conhost",
+"20240","conhost",
+"20296","conhost",
+"23816","conhost",
+"19916","CoreSync","C:\Program Files (x86)\Adobe\Adobe Sync\CoreSync\CoreSync.exe"
+"3160","crashpad_handler",
+"6312","crashpad_handler",
+"24612","Creative Cloud","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud.exe"
+"17384","Creative Cloud Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud Helper.exe"
+"4780","Creative Cloud UI Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud UI Helper.exe"
+"5588","Creative Cloud UI Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud UI Helper.exe"
+"22288","Creative Cloud UI Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud UI Helper.exe"
+"27668","Creative Cloud UI Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud UI Helper.exe"
+"29676","Creative Cloud UI Helper","C:\Program Files\Adobe\Adobe Creative Cloud\ACC\Creative Cloud UI Helper.exe"
+"21436","CrossDeviceResume","C:\windows\SystemApps\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\CrossDeviceResume.exe"
+"26916","CrossDeviceService","C:\Program Files\WindowsApps\MicrosoftWindows.CrossDevice_1.26042.110.0_x64__cw5n1h2txyewy\CrossDeviceService.exe"
+"6012","CsGMMuteSrv",
+"1020","csrss",
+"12696","csrss",
+"29280","ctfmon",
+"19692","DDPM.Subagent",
+"21540","DDPM.Subagent.User","C:\Program Files\Dell\Dell Display and Peripheral Manager\Plugins\Subagent\DDPM.Subagent.User.exe"
+"15492","Dell.CoreServices.Client",
+"19904","Dell.Digital.Delivery.Service.SubAgent",
+"2096","Dell.Remediation.Agent",
+"5108","Dell.TechHub",
+"18624","Dell.TechHub.Analytics.SubAgent",
+"19900","Dell.TechHub.DataManager.SubAgent",
+"18592","Dell.TechHub.Diagnostics.SubAgent",
+"18476","Dell.TechHub.Instrumentation.SubAgent",
+"2360","Dell.TechHub.Instrumentation.UserProcess",
+"22872","Dell.TrustedDevice.Service",
+"19828","Dell.UCA.Manager",
+"18528","Dell.Update.SubAgent",
+"20012","Dell.UUE.CoreSubAgent",
+"13540","Dell.UUE.User.SubAgent","C:\Program Files\Dell\DellOptimizer\SubAgents\Dell.UUE.User.SubAgent\Dell.UUE.User.SubAgent.exe"
+"17696","DellEnterpriseClientFrameworkSubAgent",
+"29200","DellOptimizer.Systray","C:\Program Files\Dell\DellOptimizer\Console\DellOptimizer.Systray.exe"
+"22780","DellSupportAssistRemedationService",
+"9804","dllhost","C:\windows\system32\DllHost.exe"
+"20964","dllhost",
+"18912","DPM","C:\Program Files\Dell\Dell Peripheral Manager\DPM.exe"
+"7164","DPMCrashHandler",
+"11944","DPMCrashHandler","C:\Program Files\Dell\Dell Peripheral Manager\DPMCrashHandler.exe"
+"5228","DPMService",
+"5260","DSAService",
+"5300","DSAUpdateService",
+"17684","dwm",
+"5292","DWRCS",
+"17336","DWRCST","C:\windows\dwrcs\DWRCST.exe"
+"29256","EnduranceGamingProcess","C:\Program Files\Intel\EnduranceGaming\EnduranceGamingProcess.exe"
+"28836","esrv","C:\Program Files\Intel\SUR\QUEENCREEK\x64\esrv.exe"
+"5732","esrv_svc",
+"30228","explorer","C:\windows\Explorer.EXE"
+"10224","FCDBLog",
+"1500","fontdrvhost",
+"10892","fontdrvhost",
+"10052","FortiSettings",
+"10008","FortiSSLVPNdaemon",
+"26964","FortiTray","C:\Program Files\Fortinet\FortiClient\FortiTray.exe"
+"9500","FortiVPN",
+"8560","IDBWM",
+"8128","IDBWMService",
+"0","Idle",
+"16300","IGCCTray","C:\Program Files\WindowsApps\AppUp.IntelGraphicsCommandCenterBeta_1.100.1300.0_x64__8j3eq9eme6ctt\GCP.ML.BackgroundSysTray\IGCCTray.exe"
+"5480","igfxShaderDistributionService",
+"5384","IgoAudioService_x64",
+"7356","iGoSwServer",
+"16840","iGoSwServer","C:\windows\System32\DriverStore\FileRepository\igoaudioservice.inf_amd64_ee2a83702745c8c7\iGoSwServer.exe"
+"5464","IntelAnalyticsService",
+"5540","IntelAudioService",
+"8532","IntelConnect",
+"5916","IntelConnectivityNetworkService",
+"9152","IntelConnectService",
+"5644","IntelDisplayUMService",
+"9896","IntelGraphicsSoftware.Service",
+"5600","IntelProviderDataHelperService",
+"15860","ipf_helper","C:\windows\System32\DriverStore\FileRepository\ipf_cpu.inf_amd64_5fe37e024ff302b0\ipf_helper.exe"
+"5636","ipf_uf",
+"5216","ipfsvc",
+"5784","LMS",
+"1232","LsaIso",
+"1240","lsass",
+"3920","Memory Compression",
+"22696","Microsoft.Management.Services.IntuneWindowsAgent",
+"17140","MixedRealityPairingHelper","C:\Program Files\WindowsApps\Microsoft.MixedRealityLink_26.5280.5181.0_x64__8wekyb3d8bbwe\Platform\MixedRealityPairingHelper.exe"
+"5776","MpDefenderCoreService",
+"21116","msdtc",
+"1004","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"12420","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"12720","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"14700","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"16832","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"18492","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"29892","msedge","C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+"3712","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"7272","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"9704","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"12664","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"17188","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"17292","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"23200","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"26492","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"26548","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"27692","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"29340","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"30144","msedgewebview2","C:\Program Files (x86)\Microsoft\EdgeWebView\Application\149.0.4022.80\msedgewebview2.exe"
+"6276","MsMpEng",
+"26088","mspaint","C:\Program Files\WindowsApps\Microsoft.Paint_11.2603.251.0_x64__8wekyb3d8bbwe\PaintApp\mspaint.exe"
+"10772","NisSrv",
+"26060","node","C:\Program Files\Adobe\Adobe Creative Cloud Experience\libs\node.exe"
+"5164","OfficeClickToRun",
+"2596","OffloadItemService",
+"11924","OpenConsole","C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.24.11321.0_x64__8wekyb3d8bbwe\OpenConsole.exe"
+"3496","PhoneExperienceHost","C:\Program Files\WindowsApps\Microsoft.YourPhone_1.26042.99.0_x64__8wekyb3d8bbwe\PhoneExperienceHost.exe"
+"11960","powershell","C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+"10040","PresentMonService",
+"184","Registry",
+"1084","RuntimeBroker","C:\Windows\System32\RuntimeBroker.exe"
+"6352","RuntimeBroker","C:\Windows\System32\RuntimeBroker.exe"
+"12156","RuntimeBroker","C:\Windows\System32\RuntimeBroker.exe"
+"23660","RuntimeBroker","C:\Windows\System32\RuntimeBroker.exe"
+"27196","RuntimeBroker","C:\Windows\System32\RuntimeBroker.exe"
+"4976","scheduler",
+"24872","SearchHost","C:\windows\SystemApps\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\SearchHost.exe"
+"10624","SearchIndexer",
+"140","Secure System",
+"11936","SecurityHealthService",
+"17016","SecurityHealthSystray","C:\Windows\System32\SecurityHealthSystray.exe"
+"1196","services",
+"20876","ServiceShell",
+"28708","ShellHost","C:\Windows\System32\ShellHost.exe"
+"8892","sihost","C:\windows\system32\sihost.exe"
+"712","smss",
+"3772","spoolsv",
+"13196","StartMenuExperienceHost","C:\Windows\SystemApps\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\StartMenuExperienceHost.exe"
+"5964","SupportAssistAgent",
+"6020","SurSvc",
+"1380","svchost",
+"1508","svchost",
+"1600","svchost",
+"1644","svchost",
+"1692","svchost",
+"1768","svchost",
+"1808","svchost",
+"1816","svchost",
+"1832","svchost",
+"1840","svchost",
+"1960","svchost",
+"1968","svchost",
+"2040","svchost",
+"2052","svchost",
+"2120","svchost",
+"2164","svchost",
+"2252","svchost",
+"2304","svchost",
+"2452","svchost",
+"2492","svchost",
+"2516","svchost",
+"2568","svchost",
+"2636","svchost",
+"2696","svchost",
+"2928","svchost",
+"2936","svchost",
+"3044","svchost",
+"3088","svchost",
+"3348","svchost",
+"3416","svchost",
+"3460","svchost",
+"3476","svchost",
+"3576","svchost",
+"3672","svchost",
+"3732","svchost",
+"3744","svchost",
+"3792","svchost",
+"3800","svchost",
+"3812","svchost",
+"3860","svchost",
+"3936","svchost",
+"3988","svchost",
+"4244","svchost",
+"4292","svchost",
+"4464","svchost",
+"4492","svchost",
+"4728","svchost",
+"4812","svchost",
+"4824","svchost",
+"4832","svchost",
+"4912","svchost",
+"5132","svchost",
+"5172","svchost",
+"5188","svchost",
+"5424","svchost",
+"5764","svchost","C:\windows\system32\svchost.exe"
+"5908","svchost",
+"6076","svchost",
+"6192","svchost",
+"6252","svchost",
+"6268","svchost",
+"6664","svchost",
+"6892","svchost",
+"8220","svchost",
+"8648","svchost",
+"8664","svchost",
+"8684","svchost","C:\windows\system32\svchost.exe"
+"9764","svchost",
+"9872","svchost",
+"10472","svchost",
+"11424","svchost",
+"11432","svchost",
+"11724","svchost",
+"11992","svchost","C:\windows\system32\svchost.exe"
+"12056","svchost",
+"12444","svchost",
+"13328","svchost",
+"13444","svchost",
+"13820","svchost",
+"15132","svchost","C:\windows\system32\svchost.exe"
+"15584","svchost",
+"15984","svchost","C:\windows\system32\svchost.exe"
+"16032","svchost",
+"16460","svchost",
+"16604","svchost",
+"16796","svchost",
+"17312","svchost",
+"18380","svchost",
+"18864","svchost",
+"21524","svchost",
+"21636","svchost",
+"21700","svchost",
+"22216","svchost",
+"22236","svchost",
+"23676","svchost",
+"23800","svchost","C:\windows\system32\svchost.exe"
+"23828","svchost",
+"26372","svchost","C:\windows\system32\svchost.exe"
+"26432","svchost","C:\windows\system32\svchost.exe"
+"28688","svchost","C:\windows\system32\svchost.exe"
+"28916","svchost",
+"29136","svchost",
+"4","System",
+"24432","SystemSettingsAdminFlows",
+"12928","taskhostw","C:\windows\system32\taskhostw.exe"
+"8280","TeamViewer","C:\Program Files\TeamViewer\TeamViewer.exe"
+"27740","TeamViewer_Desktop",
+"6428","TeamViewer_Service",
+"19060","tv_w32",
+"10220","tv_x64",
+"9560","unsecapp",
+"19724","WavesSvc64","C:\Windows\System32\DriverStore\FileRepository\wavesapo14de.inf_amd64_c5e8a53c37f8b1a1\WavesSvc64.exe"
+"6236","WavesSysSvc64",
+"3876","Widgets","C:\Program Files\WindowsApps\MicrosoftWindows.Client.WebExperience_526.15201.50.0_x64__cw5n1h2txyewy\Dashboard\Widgets.exe"
+"27468","WidgetService","C:\Program Files\WindowsApps\Microsoft.WidgetsPlatformRuntime_1.6.19.0_x64__8wekyb3d8bbwe\WidgetService\WidgetService.exe"
+"26024","WindowsTerminal","C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.24.11321.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe"
+"1052","wininit",
+"8264","winlogon",
+"5672","wksprt","C:\windows\system32\wksprt.exe"
+"3716","wlanext",
+"7652","WmiPrvSE",
+"9320","WmiPrvSE",
+"22172","WmiPrvSE",
+"6244","WMIRegistrationService",
+"3096","WorkloadsSessionHost",
+"11912","WorkloadsSessionHost",
+"11928","WorkloadsSessionHost",
+"16332","WorkloadsSessionHost",
+"16452","WorkloadsSessionHost",
+"17076","WorkloadsSessionHost",
+"20136","WorkloadsSessionHost",
+"24276","WorkloadsSessionHost",
+"28304","WorkloadsSessionHost",
+"16084","WorkloadsSessionManager",
+"4692","WUDFCompanionHost",
+"1416","WUDFHost",
+"1716","WUDFHost",
+"2292","WUDFHost",
+"2792","WUDFHost",
+"5096","WUDFHost",
