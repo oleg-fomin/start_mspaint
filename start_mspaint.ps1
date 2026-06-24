@@ -187,15 +187,26 @@ if (Test-Path -LiteralPath $mspaintClassic) {
     $processInfo = New-Object Win32.NativeMethods+PROCESS_INFORMATION
     $commandLine = '"' + $mspaintClassic + '"'
 
+    # CreateProcess inherits the caller's current directory when
+    # lpCurrentDirectory is NULL. If that directory is invalid for the Win32
+    # API (which can happen for the host process), CreateProcess fails with
+    # ERROR_INVALID_NAME (123) even though the executable path is correct.
+    # Pass an explicit, guaranteed-valid working directory to avoid this.
+    # Also pass the executable explicitly as lpApplicationName: relying on
+    # lpCommandLine alone for module resolution fails with ERROR_PATH_NOT_FOUND
+    # (3) in some environments, whereas an explicit application name is used
+    # directly without a search.
+    $mspaintDir = Split-Path -Parent $mspaintClassic
+
     $created = [Win32.NativeMethods]::CreateProcess(
-        $null,                 # lpApplicationName
+        $mspaintClassic,       # lpApplicationName
         $commandLine,          # lpCommandLine
         [IntPtr]::Zero,        # lpProcessAttributes
         [IntPtr]::Zero,        # lpThreadAttributes
         $false,                # bInheritHandles
         $CREATE_NO_WINDOW,     # dwCreationFlags
         [IntPtr]::Zero,        # lpEnvironment
-        $null,                 # lpCurrentDirectory
+        $mspaintDir,           # lpCurrentDirectory
         [ref]$startupInfo,     # lpStartupInfo
         [ref]$processInfo)     # lpProcessInformation
 
