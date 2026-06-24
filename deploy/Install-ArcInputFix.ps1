@@ -4,17 +4,10 @@
 
 .DESCRIPTION
     Copies ArcInputFix.exe to an install directory and registers a scheduled
-    task that runs it hidden at every logon. Two trigger modes:
-
-      -Action PointerDm  (default)  in-process input warm-up. Runs in the
-                                     interactive user's session, least privilege.
-                                     No elevation of the action itself required.
-
-      -Action Service -ServiceName <name>   starts a demand-start service.
-                                     Registers an ELEVATED task running as SYSTEM
-                                     at logon (service start needs privilege).
-
-      -Action Mspaint    fallback: launch mspaint hidden, wait, kill.
+    task that runs it hidden at every logon. The exe has a single behaviour
+    (launch Paint via its App Execution Alias to re-arm the non-client input
+    path), so the task is registered with no arguments, running in the
+    interactive user's session at least privilege.
 
     Use -Uninstall to remove the task (and optionally the files).
 
@@ -30,20 +23,10 @@
     powershell -ExecutionPolicy Bypass -File .\deploy\Install-ArcInputFix.ps1
 
 .EXAMPLE
-    .\deploy\Install-ArcInputFix.ps1 -Action Service -ServiceName TabletInputService
-
-.EXAMPLE
     .\deploy\Install-ArcInputFix.ps1 -Uninstall
 #>
 [CmdletBinding(DefaultParameterSetName = 'Install')]
 param(
-    [Parameter(ParameterSetName = 'Install')]
-    [ValidateSet('PointerDm', 'Service', 'Mspaint')]
-    [string] $Action = 'PointerDm',
-
-    [Parameter(ParameterSetName = 'Install')]
-    [string] $ServiceName,
-
     [Parameter(ParameterSetName = 'Install')]
     [string] $SourceExe,
 
@@ -101,9 +84,6 @@ if ($Uninstall) {
 # ---------------------------------------------------------------------------
 # Validate inputs
 # ---------------------------------------------------------------------------
-if ($Action -eq 'Service' -and [string]::IsNullOrWhiteSpace($ServiceName)) {
-    throw 'Action Service requires -ServiceName <name>.'
-}
 if (-not (Test-Path -LiteralPath $SourceExe)) {
     throw "ArcInputFix.exe not found at '$SourceExe'. Build it first (src\ArcInputFix\build.cmd)."
 }
@@ -119,26 +99,12 @@ Copy-Item -LiteralPath $SourceExe -Destination $destExe -Force
 Write-Host "Deployed exe -> $destExe" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-# Build the task (arguments + principal depend on the action)
+# Build the task. The exe has a single behaviour and takes no arguments; it
+# runs per interactive user at least privilege.
 # ---------------------------------------------------------------------------
-switch ($Action) {
-    'Service' {
-        $arguments = "--service `"$ServiceName`""
-        # Service start needs privilege -> run as SYSTEM, highest.
-        $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -RunLevel Highest
-    }
-    'Mspaint' {
-        $arguments = '--mspaint'
-        # Runs per interactive user, least privilege.
-        $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
-    }
-    default {
-        $arguments = '--pointer-dm'
-        $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
-    }
-}
+$principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
 
-$action  = New-ScheduledTaskAction -Execute $destExe -Argument $arguments
+$action  = New-ScheduledTaskAction -Execute $destExe
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet `
     -Hidden `
@@ -161,7 +127,7 @@ Register-ScheduledTask `
     -Settings $settings `
     -Principal $principal | Out-Null
 
-Write-Host "Registered logon task '$TaskName' (action: $Action, args: $arguments)." -ForegroundColor Green
+Write-Host "Registered logon task '$TaskName'." -ForegroundColor Green
 Write-Host "Test now with:  Start-ScheduledTask -TaskName $TaskName" -ForegroundColor Cyan
 Write-Host "Then verify Clarion caption drag / border resize, and check the" -ForegroundColor Cyan
 Write-Host "Application event log (source 'ArcInputFix') for the result." -ForegroundColor Cyan
