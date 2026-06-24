@@ -605,14 +605,17 @@ static bool LaunchPaintViaAlias()
         return false;
     };
 
-    // Launch exactly like the manual "mspaint" command (no forced SW_HIDE, to
-    // match the proven case; we hide the window afterwards instead). Use a
-    // guaranteed-valid working dir to avoid ERROR_INVALID_NAME (123).
+    // Launch the alias with STARTF_USESHOWWINDOW + SW_HIDE so Paint's window is
+    // requested hidden from the start (the post-launch EnumWindows hide remains
+    // as a fallback, since a packaged app may ignore the show-window hint). Use
+    // a guaranteed-valid working dir to avoid ERROR_INVALID_NAME (123).
     wchar_t sysDir[MAX_PATH];
     if (!GetSystemDirectoryW(sysDir, MAX_PATH)) sysDir[0] = L'\0';
 
     STARTUPINFOW si{};
     si.cb = sizeof(si);
+    si.dwFlags     = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
     PROCESS_INFORMATION pi{};
     std::vector<wchar_t> buf(cmdline.begin(), cmdline.end());
     buf.push_back(L'\0');
