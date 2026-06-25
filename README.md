@@ -22,6 +22,15 @@ B) Specific input API not called: EnableMouseInPointer / RegisterPointerDeviceNo
 C) Device/DWM handle must be opened (CreateFile \\.\... or DwmFlush/DwmEnableComposition warm-up).
 Most likely (A) or (B); both are trivially replicable.
 
+## Two realistic paths forward
+* PATH 1 (identify exact trigger): run Capture-Modules.ps1 (default, NO procmon) on Dell ->
+  send mspaint-modules.csv + mspaint-children.csv. Look for InputHost/CoreMessaging/
+  textinputframework/twinapi/Windows.UI. Then replicate via a CoreWindow/UWP-style helper.
+* PATH 2 (pragmatic ship): exact minimal replication may need a packaged/CoreWindow app, which
+  is heavy. The PROVEN fix = launch a packaged app briefly. Ship --mspaint (or a tiny owned
+  packaged helper) as the logon utility. Robustness risk: depends on Paint being installed;
+  consider our own minimal packaged CoreWindow helper instead.
+
 ## Phases
 
 ### Phase 0 - Baseline & deterministic repro (on affected hardware)
@@ -126,6 +135,18 @@ Deliverable: ONE concrete trigger (service name OR API call OR handle/device).
 - Next theory: trigger needs a real composed top-level window and/or a GPU device on the
   Intel Arc (DWM/compositor/D3D warm-up).
 
+## User decisions (round 2)
+- Code signing NOT available yet (sign before fleet rollout; unsigned may trip SmartScreen/WDAC).
+- Task runs as logged-on user -> already default (Users group, Limited run level). OK.
+- VS2022 + MSVC present on dev box.
+
+## Next actions (require affected 268V hardware)
+1. Run tools/Invoke-FixDiff.ps1 from fresh broken logon -> identify trigger (svc/proc/driver).
+2. If empty, run tools/Capture-Modules.ps1 (+Procmon/API Monitor) -> identify DLL/API.
+3. Build exe (src/ArcInputFix/build.cmd on a VS box), test each candidate via
+   ArcInputFix.exe --pointer-dm / --service NAME from broken state (Phase 2 validation).
+4. Set the confirmed winner as default action; install via Install-ArcInputFix.ps1.
+
 ## Bisection actions added to ArcInputFix (built+smoke-tested exit 0)
 - --window  : real off-screen WS_OVERLAPPEDWINDOW + DwmExtendFrameIntoClientArea + pump.
 - --d3d     : D3D11CreateDeviceAndSwapChain (flip model) on Arc + Present x2.
@@ -136,6 +157,7 @@ Deliverable: ONE concrete trigger (service name OR API call OR handle/device).
 NEXT: on Dell from fresh broken logon, test --all first; if it fixes, bisect single
 flags (--d3d, --dcomp, --window, --gdiplus) to find the minimal trigger; set as default.
 If --all fails but --mspaint works -> go Procmon/API Monitor (Capture-Modules.ps1).
+
 
 ## Round 3 results
 - --all (gdiplus+window+dcomp+d3d+pointer-dm) did NOT fix it. Caption BUTTONS
@@ -256,29 +278,98 @@ NEXT (Dell, broken logon): .\src\ArcInputFix\ArcInputFix.exe --mspaint  -> fix n
 - Signing NOT available yet -> (b)/(c) blocked for fleet. Recommend ship (a), lock --mspaint default,
   update Install-ArcInputFix.ps1 default action to Mspaint. Risk: depends on packaged Paint present.
 
+---
 
-## Two realistic paths forward
-PATH 1 (identify exact trigger): run Capture-Modules.ps1 (default, NO procmon) on Dell ->
-  send mspaint-modules.csv + mspaint-children.csv. Look for InputHost/CoreMessaging/
-  textinputframework/twinapi/Windows.UI. Then replicate via a CoreWindow/UWP-style helper.
-PATH 2 (pragmatic ship): exact minimal replication may need a packaged/CoreWindow app, which
-  is heavy. The PROVEN fix = launch a packaged app briefly. Ship --mspaint (or a tiny owned
-  packaged helper) as the logon utility. Robustness risk: depends on Paint being installed;
-  consider our own minimal packaged CoreWindow helper instead.
+# Next Plan: Convert ArcInputFix.cpp to Clarion
 
-## User decisions (round 2)
-- Code signing NOT available yet (sign before fleet rollout; unsigned may trip SmartScreen/WDAC).
-- Task runs as logged-on user -> already default (Users group, Limited run level). OK.
-- VS2022 + MSVC present on dev box.
+## Goal
+Port the trimmed ArcInputFix.cpp (the "single purpose" mspaint-launch utility in
+src/ArcInputFix/ArcInputFix.cpp) into a Clarion 11/11.1 Win32 hand-coded project in
+a NEW folder, faithfully replicating the alias + classic mspaint CreateProcess paths.
+Windowless, logs one line to Windows Event Log.
 
-## Next actions (require affected 268V hardware)
-1. Run tools/Invoke-FixDiff.ps1 from fresh broken logon -> identify trigger (svc/proc/driver).
-2. If empty, run tools/Capture-Modules.ps1 (+Procmon/API Monitor) -> identify DLL/API.
-3. Build exe (src/ArcInputFix/build.cmd on a VS box), test each candidate via
-   ArcInputFix.exe --pointer-dm / --service NAME from broken state (Phase 2 validation).
-4. Set the confirmed winner as default action; install via Install-ArcInputFix.ps1.
+## Decisions (from user)
+- Clarion 11/11.1 Win32, hand-coded .cwproj (NOT Clarion#, NOT legacy .prj).
+- Scope = alias launch + classic mspaint.exe CreateProcess ONLY. DROP the
+  IApplicationActivationManager COM packaged-Paint fallback.
+  NOTE: dropping COM is OK because the App Execution Alias (mspaint.exe in
+  %LOCALAPPDATA%\Microsoft\WindowsApps) already launches PACKAGED Paint on the
+  25H2 Dell — that alias path IS the proven primary fix.
+- Windowless; a minimal hidden window allowed but not needed (no Clarion window opened).
 
-## Open questions for user
-1. Elevation context once trigger known: SYSTEM vs logged-on user? (depends on Phase 1)
-2. Is signing infrastructure already available for fleet exe? 
-3. Fold the utility into this repo, or new repo?
+## Key technical constraints
+- Clarion classic = 32-bit only (no x64 through 11.1). Exe runs under WOW64. All
+  APIs used (CreateProcess, Toolhelp, EnumWindows, event log) work fine in 32-bit.
+  Alias launch of packaged Paint works from 32-bit.
+- Use ANSI (A) Win32 APIs (CreateProcessA, GetEnvironmentVariableA, RegisterEventSourceA,
+  Process32First/Process32FirstW? use ANSI Process32First w/ PROCESSENTRY32) — Clarion
+  CSTRING maps directly to ANSI. All strings here are ASCII.
+  Caveat: non-ASCII LOCALAPPDATA path would break (rare); acceptable.
+- WOW64 nuance: GetSystemDirectoryA returns SysWOW64 in 32-bit. Only used for working
+  dir + classic mspaint.exe existence check (which Dell lacks anyway). To check real
+  System32 classic mspaint from 32-bit, would need %WINDIR%\Sysnative. Minor; alias is primary.
+- Clarion exes are GUI subsystem (no console) by default -> matches /SUBSYSTEM:WINDOWS.
+
+## New folder + files: src/ArcInputFixClarion/
+- ArcInputFix.cwproj  — Clarion 11 MSBuild project; OutputType=exe; Runtime=Local
+  (statically linked, self-contained like the C++ /MT build).
+- ArcInputFix.clw     — single-file PROGRAM: global MAP (local procs + MODULE win32
+  prototypes), equates, data, CODE, procedure implementations.
+- build.cmd           — command-line build via ClarionCL.exe / MSBuild (analog of
+  src/ArcInputFix/build.cmd). Locates Clarion bin, builds Release Win32.
+- (optional) ArcInputFix.red — local redirection if needed for libsrc/libs.
+
+## Function mapping (C++ -> Clarion)
+- LogEvent            -> LogEvent(USHORT pType,*CSTRING pMsg) — RegisterEventSourceA/
+                         ReportEventA/DeregisterEventSource + OutputDebugStringA.
+- PumpMessages        -> PumpMessages(ULONG pMs) — GetTickCount loop + PeekMessageA(PM_REMOVE)
+                         + TranslateMessage + DispatchMessageA + Sleep(10). MSG group.
+- FindAndHidePaintWnd -> callback PROCEDURE(LONG hwnd,LONG lparam),BOOL,RAW,PASCAL.
+                         Use MODULE-GLOBAL state (GsTargetPid, GsHidden) instead of
+                         threading a struct via lParam — cleaner in Clarion. Passed to
+                         EnumWindows via ADDRESS(FindAndHidePaintWnd).
+- HideWindowsOfPid    -> HideWindowsOfPid(ULONG pid),BYTE — sets globals, calls EnumWindows.
+- CollectPidsByName   -> CollectPidsByName(*CSTRING exeName,*QUEUE pidQ) — Toolhelp
+                         snapshot + Process32First/Next; QUEUE(ULONG) replaces std::vector.
+- LaunchPaintViaAlias -> LaunchPaintViaAlias(),BYTE — resolve alias path via
+                         GetEnvironmentVariableA(LOCALAPPDATA)+GetFileAttributesA, else
+                         "mspaint.exe" on PATH. Snapshot before-PIDs, CreateProcessA with
+                         STARTF_USESHOWWINDOW+SW_HIDE and a valid working dir, poll/hide
+                         new Paint PIDs (up to ~10s pumping), dwell 8s pumping, TerminateProcess all.
+- DoMspaintFallback   -> DoMspaintFallback(),BYTE — alias first; then classic
+                         <sysdir>\mspaint.exe if present (CreateProcessA + Sleep(5000) + kill).
+                         (COM LaunchPackagedPaint path OMITTED per scope.)
+- wWinMain            -> PROGRAM CODE: ok#=DoMspaintFallback(); LogEvent(...); RETURN(CHOOSE(ok#,0,1)).
+
+## Win32 prototypes (MODULE('Win32'), PASCAL,RAW,DLL): ANSI variants
+kernel32: GetEnvironmentVariableA, GetFileAttributesA, GetSystemDirectoryA,
+  CreateProcessA, OpenProcess, TerminateProcess, CloseHandle, GetTickCount, Sleep,
+  CreateToolhelp32Snapshot, Process32First, Process32Next.
+user32:   EnumWindows, GetWindowThreadProcessId, IsWindowVisible, ShowWindow,
+  PeekMessageA, TranslateMessage, DispatchMessageA, OutputDebugStringA(kernel32).
+advapi32: RegisterEventSourceA, ReportEventA, DeregisterEventSource.
+GROUPs (32-bit layout): STARTUPINFO, PROCESS_INFORMATION, PROCESSENTRY32, MSG.
+Equates: STARTF_USESHOWWINDOW=1, SW_HIDE=0, PROCESS_TERMINATE=1,
+  TH32CS_SNAPPROCESS=2, INVALID_HANDLE_VALUE=-1, INVALID_FILE_ATTRIBUTES=-1,
+  PM_REMOVE=1, EVENTLOG_ERROR_TYPE=1, EVENTLOG_WARNING_TYPE=2, EVENTLOG_INFORMATION_TYPE=4.
+
+## Verification
+1. Build: run src/ArcInputFixClarion/build.cmd -> ArcInputFix.exe produced, no errors.
+   (Or open .cwproj in Clarion IDE, Make, Release/Win32.)
+2. Windowless: launch exe -> no window/console flash; process exits ~ after dwell.
+3. Functional (affected Dell, fresh broken logon): run exe from broken state ->
+   Clarion MDI caption drag + border resize + caption buttons start working; persists to logoff.
+4. Event Log: one ArcInputFix entry per run (Information on success).
+5. Compare behavior to C++ ArcInputFix.exe alias path (should match).
+
+## Out of scope
+- COM IApplicationActivationManager packaged-Paint fallback (dropped per decision).
+- C++/WinRT --render/--coremsg bisection flags (already removed from the trimmed cpp).
+- Changing deploy/ task XML + Install-ArcInputFix.ps1 (optional follow-up: point the
+  logon task at the Clarion exe). Not included unless requested.
+- 64-bit build (Clarion classic can't; not needed).
+
+## Build env (CONFIRMED)
+- Clarion 11.0, command-line compiler: C:\Clarion\bin\ClarionCL.exe
+- build.cmd uses CLARION_BIN env override, default C:\Clarion\bin; invokes
+  ClarionCL.exe on ArcInputFix.cwproj (Release/Win32).
