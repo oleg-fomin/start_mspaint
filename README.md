@@ -373,3 +373,54 @@ Equates: STARTF_USESHOWWINDOW=1, SW_HIDE=0, PROCESS_TERMINATE=1,
 - Clarion 11.0, command-line compiler: C:\Clarion\bin\ClarionCL.exe
 - build.cmd uses CLARION_BIN env override, default C:\Clarion\bin; invokes
   ClarionCL.exe on ArcInputFix.cwproj (Release/Win32).
+
+## IMPLEMENTATION RESULT (DONE - all files build + run OK)
+Files: src/ArcInputFixClarion/{ArcInputFix.clw, ArcInputFix.cwproj, build.cmd}
+Verified: build exit 0; exe runs exit 0 (~19s = 10s wait + 8s dwell); writes
+Event Log "ArcInputFix mspaint succeeded"; x86 GUI-subsystem (windowless).
+
+### Clarion build gotchas discovered (IMPORTANT for future Clarion work here)
+- ClarionCL.exe has NO build switch. Build hand-coded .cwproj via .NET Framework
+  MSBuild: %WINDIR%\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe with
+  /p:ClarionBinPath="C:\Clarion\bin" and /p:clarion_version="<exact name>".
+- clarion_version MUST be the EXACT registered name incl. build no., e.g.
+  "Clarion 11.0.13505" (NOT "11.0", NOT "Clarion11"). Found under
+  <Properties name="Clarion.Versions"> in
+  %APPDATA%\SoftVelocity\Clarion\11.0\ClarionProperties.xml. build.cmd
+  auto-detects it (powershell xml parse); override via CLARION_VERSION.
+- Project imports $(ClarionBinPath)\SoftVelocity.Build.Clarion.targets.
+- Model=Lib (STATIC runtime) produced a CRASHING exe: even a trivial
+  PROGRAM/MAP END/CODE/RETURN died with STACK_OVERFLOW (0xC00000FD) at startup.
+  Model=Dll (Clarion runtime DLLs) WORKS. => use Model=Dll.
+- Model=Dll means the exe needs CLARUN.DLL at runtime (imports: KERNEL32,
+  USER32, ADVAPI32, CLARUN.DLL). build.cmd copies ClaRUN.dll into 0release\ so
+  the folder is self-runnable. DEPLOYMENT: ship ClaRUN.dll beside ArcInputFix.exe.
+- Output path (Release) via redirection = .\0release\ (not bin\).
+- echo text inside cmd if() blocks must NOT contain literal ) -> breaks the
+  block (caused a spurious "[ERROR] ... code 0"). Avoid parens in echo.
+
+### Clarion porting notes (worked)
+- ANSI (A) Win32 APIs via MODULE('WINAPI') prototypes, distinct w_ names +
+  NAME('FnA'); link via PRAGMA('link(WIN32.LIB)'). All needed symbols
+  (Toolhelp, EnumWindows, event log, CreateProcess) resolved from WIN32.LIB.
+- Windows callback (EnumWindows) = ,PASCAL (=stdcall on Clarion32), NOT RAW,
+  scalar LONG params, called via ADDRESS(proc). Module-global state for the
+  callback (GsTargetPid/GsHidden) instead of lParam struct. Works (no overflow
+  once Model=Dll).
+- 32-bit groups: STARTUPINFO(68B)/PROCESS_INFORMATION(16B)/PROCESSENTRY32(296B,
+  szExeFile CSTRING(260))/MSG(28B). PROC attr on all API fns so returns can be
+  ignored. ExitProcess sets exit code 0/1.
+- Scope kept per decision: alias + classic mspaint CreateProcess only; COM
+  packaged-Paint path omitted.
+
+### Possible follow-ups (NOT done unless asked)
+- Repoint deploy/ logon task + Install-ArcInputFix.ps1 at the Clarion exe (+ ship
+  ClaRUN.dll). - Investigate static (Lib) link to drop the DLL dependency.
+- Add .gitignore for 0release/ build outputs.
+
+### Testing notes (Dell Pro Plus 268V, Intel Arc 140V, Windows 11 25H2)
+- Fresh logon, Clarion MDI child windows: caption drag + border resize dead.
+- Run ArcInputFix.exe (alias launch) -> wait ~19s (10s wait for Paint window + 8s dwell) -> 
+  **Unfortunately, Clarion MDI caption drag + border resize still DOES NOT work.**
+  This is similar to the Round 7/8/9 C++ ArcInputFix.exe behavior: 
+  alias launch works but does not work from IApplicationActivationManager.

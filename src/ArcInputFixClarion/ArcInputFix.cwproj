@@ -1,0 +1,35 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{7E3A1C9D-2B4F-4E6A-9C1D-5F8B3A2E7D14}</ProjectGuid>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">Win32</Platform>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ArcInputFix</AssemblyName>
+    <OutputName>ArcInputFix</OutputName>
+    <!-- Model=Dll: link against the Clarion runtime DLLs (ClaRUN.dll etc.).
+         The static (Lib) runtime produced a non-working windowless exe on this
+         toolset, so the redistributable runtime-DLL model is used. The runtime
+         DLLs must be deployed alongside ArcInputFix.exe (see README/deploy). -->
+    <Model>Dll</Model>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>True</DebugSymbols>
+    <DebugType>Full</DebugType>
+    <vid>full</vid>
+    <check_stack>True</check_stack>
+    <check_index>True</check_index>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+    <vid>off</vid>
+    <check_stack>False</check_stack>
+    <check_index>False</check_index>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ArcInputFix.clw">
+      <Generated>true</Generated>
+    </Compile>
+  </ItemGroup>
+  <Import Project="$(ClarionBinPath)\SoftVelocity.Build.Clarion.targets" />
+</Project>
