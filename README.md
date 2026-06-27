@@ -399,7 +399,21 @@ Event Log "ArcInputFix mspaint succeeded"; x86 GUI-subsystem (windowless).
 - echo text inside cmd if() blocks must NOT contain literal ) -> breaks the
   block (caused a spurious "[ERROR] ... code 0"). Avoid parens in echo.
 
-## Round 10 - Clarion alias launch FAILED on Dell; root cause = forced SW_HIDE
+### Clarion porting notes (worked)
+- ANSI (A) Win32 APIs via MODULE('WINAPI') prototypes, distinct w_ names +
+  NAME('FnA'); link via PRAGMA('link(WIN32.LIB)'). All needed symbols
+  (Toolhelp, EnumWindows, event log, CreateProcess) resolved from WIN32.LIB.
+- Windows callback (EnumWindows) = ,PASCAL (=stdcall on Clarion32), NOT RAW,
+  scalar LONG params, called via ADDRESS(proc). Module-global state for the
+  callback (GsTargetPid/GsHidden) instead of lParam struct. Works (no overflow
+  once Model=Dll).
+- 32-bit groups: STARTUPINFO(68B)/PROCESS_INFORMATION(16B)/PROCESSENTRY32(296B,
+  szExeFile CSTRING(260))/MSG(28B). PROC attr on all API fns so returns can be
+  ignored. ExitProcess sets exit code 0/1.
+- Scope kept per decision: alias + classic mspaint CreateProcess only; COM
+  packaged-Paint path omitted.
+
+## Round 10 - Clarion alias launch FAILED on Dell; suspected root cause = forced SW_HIDE
 - Dell test: Clarion ArcInputFix.exe (alias launch) ran ~19s then exited 0, but
   Clarion MDI caption-drag + border-resize STILL did not work.
 - DIAGNOSIS: the Clarion port forced STARTF_USESHOWWINDOW + SW_HIDE in STARTUPINFO
@@ -465,28 +479,31 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   frame of appearing, so the render still happens (fix preserved) but the visible
   flash drops from ~12 frames to ~1. Dev: exit 0, hidWin=1, ~9s (8s dwell dominates).
 
-### Clarion porting notes (worked)
-- ANSI (A) Win32 APIs via MODULE('WINAPI') prototypes, distinct w_ names +
-  NAME('FnA'); link via PRAGMA('link(WIN32.LIB)'). All needed symbols
-  (Toolhelp, EnumWindows, event log, CreateProcess) resolved from WIN32.LIB.
-- Windows callback (EnumWindows) = ,PASCAL (=stdcall on Clarion32), NOT RAW,
-  scalar LONG params, called via ADDRESS(proc). Module-global state for the
-  callback (GsTargetPid/GsHidden) instead of lParam struct. Works (no overflow
-  once Model=Dll).
-- 32-bit groups: STARTUPINFO(68B)/PROCESS_INFORMATION(16B)/PROCESSENTRY32(296B,
-  szExeFile CSTRING(260))/MSG(28B). PROC attr on all API fns so returns can be
-  ignored. ExitProcess sets exit code 0/1.
-- Scope kept per decision: alias + classic mspaint CreateProcess only; COM
-  packaged-Paint path omitted.
-
-### Possible follow-ups (NOT done unless asked)
-- Repoint deploy/ logon task + Install-ArcInputFix.ps1 at the Clarion exe (+ ship
-  ClaRUN.dll). - Investigate static (Lib) link to drop the DLL dependency.
-- Add .gitignore for 0release/ build outputs.
-
-### Testing notes (Dell Pro Plus 268V, Intel Arc 140V, Windows 11 25H2)
-- Fresh logon, Clarion MDI child windows: caption drag + border resize dead.
-- Run ArcInputFix.exe (alias launch) -> wait ~19s (10s wait for Paint window + 8s dwell) -> 
-  **Unfortunately, Clarion MDI caption drag + border resize still DOES NOT work.**
-  This is similar to the Round 7/8/9 C++ ArcInputFix.exe behavior: 
-  alias launch works but does not work from IApplicationActivationManager.
+## Round 13 - Replicate the C++ exactly (64-bit CreateProcess + SW_HIDE, no flicker)
+- WHY: Round 12 cmd64 fixed the Dell but flickered (cmd.exe cannot pass SW_HIDE to
+  its child, so Paint's window flashed). The proven 64-bit C++ exe launches the
+  alias with STARTF_USESHOWWINDOW + SW_HIDE (ArcInputFix.cpp ~L178-179) and fixes
+  the Dell WITH NO FLICKER - so "Paint must render visibly" (Round 10) was WRONG.
+- CONSTRAINT: Clarion 11 classic is 32-bit only; it cannot itself do a native 64-bit
+  CreateProcess. cmd64 gave the 64-bit context but not SW_HIDE. Need BOTH.
+- FIX: LaunchPaintViaAlias now delegates the launch to 64-bit Windows PowerShell
+  running a deployed helper, `launch-paint-hidden.ps1`, which does the IDENTICAL
+  Win32 CreateProcess(alias) with STARTF_USESHOWWINDOW + SW_HIDE as the C++ -> native
+  64-bit context (the fix) AND genuinely hidden (no flicker). Clarion (32-bit) builds
+  the command line for `%WINDIR%\Sysnative\WindowsPowerShell\v1.0\powershell.exe`
+  (Sysnative = real 64-bit System32 from a 32-bit process), launches it hidden +
+  CREATE_NO_WINDOW, WaitForSingleObject, then reads the helper's exit code.
+  Diagnostic line: `alias launch: via=ps64 alias=<path> helperExit=<code> wait=<n>`.
+- HELPER PID RESOLUTION GOTCHA: CreateProcess on the WindowsApps reparse alias with
+  lpApplicationName = NULL fails with ERROR_PATH_NOT_FOUND (3); passing the resolved
+  full alias path as lpApplicationName (as start_mspaint.ps1 documents) succeeds.
+  The helper now sets lpApplicationName = $AliasPath when it is a full path.
+- DEPLOY: build.cmd now copies launch-paint-hidden.ps1 into 0release\ alongside
+  ArcInputFix.exe + ClaRUN.dll. All three must ship together.
+- DEV VERIFY: build 0 warn/0 err; exe exit 0; log `via=ps64 ... helperExit=0 wait=0`
+  -> "ArcInputFix mspaint succeeded". Paint launched fully hidden (no flash). Ready
+  for Dell test.
+- NEXT (Dell, fresh broken logon): run 0release\ArcInputFix.exe (with ClaRUN.dll +
+  launch-paint-hidden.ps1 beside it) -> caption-drag/border-resize fixed AND no
+  flicker? Expected YES (this is byte-for-byte the C++ launch, just hosted in a
+  64-bit PowerShell helper instead of the 64-bit C++ exe).

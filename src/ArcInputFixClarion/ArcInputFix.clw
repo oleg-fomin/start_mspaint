@@ -39,10 +39,13 @@
       w_GetEnvironmentVariable(*CSTRING lpName, *CSTRING lpBuffer, ULONG nSize),ULONG,RAW,PASCAL,PROC,NAME('GetEnvironmentVariableA')
       w_GetFileAttributes(*CSTRING lpFileName),LONG,RAW,PASCAL,PROC,NAME('GetFileAttributesA')
       w_GetSystemDirectory(*CSTRING lpBuffer, ULONG uSize),ULONG,RAW,PASCAL,PROC,NAME('GetSystemDirectoryA')
+      w_GetModuleFileName(LONG hModule, *CSTRING lpFilename, ULONG nSize),ULONG,RAW,PASCAL,PROC,NAME('GetModuleFileNameA')
       w_CreateProcess(LONG lpApplicationName, *CSTRING lpCommandLine, LONG lpProcessAttributes, LONG lpThreadAttributes, SIGNED bInheritHandles, ULONG dwCreationFlags, LONG lpEnvironment, LONG lpCurrentDirectory, *GROUP lpStartupInfo, *GROUP lpProcessInformation),SIGNED,RAW,PASCAL,PROC,NAME('CreateProcessA')
       w_OpenProcess(ULONG dwDesiredAccess, SIGNED bInheritHandle, ULONG dwProcessId),LONG,PASCAL,PROC,NAME('OpenProcess')
       w_TerminateProcess(LONG hProcess, ULONG uExitCode),SIGNED,PASCAL,PROC,NAME('TerminateProcess')
       w_CloseHandle(LONG hObject),SIGNED,PASCAL,PROC,NAME('CloseHandle')
+      w_WaitForSingleObject(LONG hHandle, ULONG dwMilliseconds),ULONG,PASCAL,PROC,NAME('WaitForSingleObject')
+      w_GetExitCodeProcess(LONG hProcess, *ULONG lpExitCode),SIGNED,RAW,PASCAL,PROC,NAME('GetExitCodeProcess')
       w_GetLastError(),ULONG,PASCAL,PROC,NAME('GetLastError')
       w_GetTickCount(),ULONG,PASCAL,PROC,NAME('GetTickCount')
       w_Sleep(ULONG dwMilliseconds),PASCAL,NAME('Sleep')
@@ -75,6 +78,7 @@ INVALID_HANDLE_VALUE      EQUATE(-1)
 INVALID_FILE_ATTRIBUTES   EQUATE(-1)
 PM_REMOVE                 EQUATE(1)
 CREATE_NO_WINDOW          EQUATE(08000000H)
+WAIT_TIMEOUT_MS           EQUATE(60000)
 EVENTLOG_ERROR_TYPE       EQUATE(1)
 EVENTLOG_WARNING_TYPE     EQUATE(2)
 EVENTLOG_INFORMATION_TYPE EQUATE(4)
@@ -274,142 +278,102 @@ K                      LONG
 ! ===========================================================================
 LaunchPaintViaAlias  PROCEDURE()
 EnvName                CSTRING(20)
-CmdLine                CSTRING(420)
 LocalApp               CSTRING(261)
 AliasPath              CSTRING(320)
-InnerTarget            CSTRING(320)
 WinDir                 CSTRING(261)
-SysCmd                 CSTRING(320)
-LaunchVia              CSTRING(8)
-CreFlags               ULONG
+Ps64                   CSTRING(360)
+ExeFull                CSTRING(320)
+ExeDir                 CSTRING(320)
+HelperPath             CSTRING(380)
+CmdLine                CSTRING(800)
 SysDir                 CSTRING(261)
 N                      ULONG
+K                      LONG
 SI                     LIKE(STARTUPINFO)
 PI                     LIKE(PROCESS_INFORMATION)
-HidAny                 BYTE
-KillCount              LONG
-LaunchedPid            ULONG
-I                      LONG
-J                      LONG
-hProc                  LONG
+ExitCode               ULONG
+WaitRes                ULONG
   CODE
   ! Resolve the alias path; fall back to a bare PATH search ("mspaint.exe"),
   ! since %LOCALAPPDATA%\Microsoft\WindowsApps is on the user's PATH.
-  CmdLine = 'mspaint.exe'
+  AliasPath = 'mspaint.exe'
   EnvName = 'LOCALAPPDATA'
   N = w_GetEnvironmentVariable(EnvName, LocalApp, SIZE(LocalApp))
   IF N > 0 AND N < SIZE(LocalApp)
     AliasPath = CLIP(LocalApp) & '\Microsoft\WindowsApps\mspaint.exe'
-    IF w_GetFileAttributes(AliasPath) <> INVALID_FILE_ATTRIBUTES
-      CmdLine = '"' & CLIP(AliasPath) & '"'
+    IF w_GetFileAttributes(AliasPath) = INVALID_FILE_ATTRIBUTES
+      AliasPath = 'mspaint.exe'
     END
   END
 
-  ! Snapshot existing Paint PIDs so we can tell which are newly spawned.
-  SnapshotPaintPids()
-  FREE(BeforeQ)
-  LOOP I = 1 TO RECORDS(ScanQ)
-    GET(ScanQ, I)
-    BQ:Pid = SQ:Pid
-    ADD(BeforeQ)
+  ! Clarion classic is 32-bit; a 32-bit (WOW64) CreateProcess of the alias shows
+  ! Paint but does NOT re-arm the input path on the Dell, and cmd.exe cannot pass
+  ! SW_HIDE to the child (so it flickered). Delegate the launch to 64-bit Windows
+  ! PowerShell running launch-paint-hidden.ps1, which does the IDENTICAL Win32
+  ! CreateProcess(alias) with STARTF_USESHOWWINDOW + SW_HIDE as the proven C++ exe:
+  ! native 64-bit context (the fix) AND genuinely hidden (no flicker).
+
+  ! 64-bit PowerShell as seen from this 32-bit process (Sysnative -> real System32).
+  EnvName = 'windir'
+  N = w_GetEnvironmentVariable(EnvName, WinDir, SIZE(WinDir))
+  IF N = 0 OR N >= SIZE(WinDir)
+    LogEvent(EVENTLOG_ERROR_TYPE, 'ArcInputFix: cannot resolve %windir%')
+    RETURN(0)
+  END
+  Ps64 = CLIP(WinDir) & '\Sysnative\WindowsPowerShell\v1.0\powershell.exe'
+  IF w_GetFileAttributes(Ps64) = INVALID_FILE_ATTRIBUTES
+    Ps64 = CLIP(WinDir) & '\System32\WindowsPowerShell\v1.0\powershell.exe'
+    IF w_GetFileAttributes(Ps64) = INVALID_FILE_ATTRIBUTES
+      Ps64 = 'powershell.exe'
+    END
+  END
+
+  ! Locate launch-paint-hidden.ps1 next to this exe.
+  ExeFull = ''
+  N = w_GetModuleFileName(0, ExeFull, SIZE(ExeFull))
+  ExeDir = ''
+  LOOP K = LEN(CLIP(ExeFull)) TO 1 BY -1
+    IF SUB(ExeFull, K, 1) = '\'
+      ExeDir = SUB(ExeFull, 1, K)
+      BREAK
+    END
+  END
+  HelperPath = CLIP(ExeDir) & 'launch-paint-hidden.ps1'
+  IF w_GetFileAttributes(HelperPath) = INVALID_FILE_ATTRIBUTES
+    LogEvent(EVENTLOG_ERROR_TYPE, 'ArcInputFix: helper not found: ' & CLIP(HelperPath))
+    RETURN(0)
   END
 
   ! Guaranteed-valid working dir to avoid ERROR_INVALID_NAME (123).
   IF NOT w_GetSystemDirectory(SysDir, SIZE(SysDir)) THEN SysDir = ''.
 
-  ! Round 11: launch Paint through the 64-bit cmd.exe so the packaged app is
-  ! created in a NATIVE 64-bit context. On the Dell, a direct CreateProcess from
-  ! this 32-bit (WOW64) exe shows Paint (hidWin=1) but does NOT re-arm the input
-  ! path; the 64-bit C++ exe does. %WINDIR%\Sysnative\cmd.exe is the 64-bit cmd
-  ! as seen from a 32-bit process. 'cmd /s /c "<alias>"' makes the 64-bit cmd the
-  ! direct parent of Paint (no 'start', so the parent context is preserved).
-  InnerTarget = CmdLine                              ! quoted alias path, else 'mspaint.exe'
-  LaunchVia   = 'direct'
-  CreFlags    = 0
-  EnvName = 'windir'
-  N = w_GetEnvironmentVariable(EnvName, WinDir, SIZE(WinDir))
-  IF N > 0 AND N < SIZE(WinDir)
-    SysCmd = CLIP(WinDir) & '\Sysnative\cmd.exe'
-    IF w_GetFileAttributes(SysCmd) <> INVALID_FILE_ATTRIBUTES
-      CmdLine   = '"' & CLIP(SysCmd) & '" /s /c "' & CLIP(InnerTarget) & '"'
-      LaunchVia = 'cmd64'
-      CreFlags  = CREATE_NO_WINDOW                    ! no console flash for cmd
-    END
-  END
+  CmdLine = '"' & CLIP(Ps64) & '" -NoProfile -ExecutionPolicy Bypass -NonInteractive' |
+          & ' -WindowStyle Hidden -File "' & CLIP(HelperPath) & '"' |
+          & ' -AliasPath "' & CLIP(AliasPath) & '"'
 
-  ! Launch WITHOUT forcing SW_HIDE - exactly like typing "mspaint" at a prompt
-  ! (the proven manual / C++ Round 8/9 path). Paint shows briefly so its
-  ! WinUI3/CoreWindow input+composition stack initializes (that init is the actual
-  ! trigger); the post-launch EnumWindows pass then hides the window. Launching it
-  ! pre-hidden can suppress that init and is why the bug persists on the Dell.
+  ! Run the helper hidden + windowless; wait for it to finish the launch + dwell.
   CLEAR(SI)
   SI.cb = SIZE(SI)
+  SI.dwFlags = STARTF_USESHOWWINDOW
+  SI.wShowWindow = SW_HIDE
   CLEAR(PI)
-  IF NOT w_CreateProcess(0, CmdLine, 0, 0, 0, CreFlags, 0, |
+  IF NOT w_CreateProcess(0, CmdLine, 0, 0, 0, CREATE_NO_WINDOW, 0, |
         CHOOSE(SysDir <> '', ADDRESS(SysDir), 0), SI, PI)
-    LogEvent(EVENTLOG_ERROR_TYPE, 'CreateProcess(mspaint alias) failed: ' & w_GetLastError())
+    LogEvent(EVENTLOG_ERROR_TYPE, 'CreateProcess(powershell helper) failed: ' & w_GetLastError())
     RETURN(0)
   END
-  LaunchedPid = PI.dwProcessId
 
-  ! Target set: the real Paint process(es) found by snapshot diff. In cmd64 mode
-  ! the launched PID is the cmd shell (not Paint), so only seed the launched PID
-  ! as a target for the direct path.
-  FREE(TargetQ)
-  IF LaunchVia = 'direct' AND PI.dwProcessId <> 0
-    TQ:Pid = PI.dwProcessId
-    ADD(TargetQ)
-  END
-
-  ! Poll tightly for Paint's window to appear, then hide it within ~one frame.
-  ! Paint MUST render (its WinUI3/CoreWindow input+composition stack init is the
-  ! actual trigger - launching it pre-hidden does NOT fix the bug), but it only
-  ! needs to be visible for a frame or two. Catching it every ~15ms instead of
-  ! every 200ms cuts the visible flash from ~12 frames to ~1, killing the flicker.
-  HidAny = 0
-  LOOP I = 1 TO 600                                  ! ~15ms x 600 = up to ~10s
-    SnapshotPaintPids()
-    LOOP J = 1 TO RECORDS(ScanQ)
-      GET(ScanQ, J)
-      IF NOT InBeforeQ(SQ:Pid) AND NOT InTargetQ(SQ:Pid)
-        TQ:Pid = SQ:Pid
-        ADD(TargetQ)
-      END
-    END
-    LOOP J = 1 TO RECORDS(TargetQ)
-      GET(TargetQ, J)
-      IF HideWindowsOfPid(TQ:Pid) THEN HidAny = 1.
-    END
-    IF HidAny THEN BREAK.
-    PumpMessages(15)
-  END
-
-  ! Dwell while pumping so Paint completes the session-wide init that re-arms the
-  ! non-client input path, then terminate every target.
-  PumpMessages(8000)
-
-  KillCount = 0
-  LOOP J = 1 TO RECORDS(TargetQ)
-    GET(TargetQ, J)
-    hProc = w_OpenProcess(PROCESS_TERMINATE, 0, TQ:Pid)
-    IF hProc
-      w_TerminateProcess(hProc, 0)
-      w_CloseHandle(hProc)
-      KillCount += 1
-    END
-  END
+  WaitRes = w_WaitForSingleObject(PI.hProcess, WAIT_TIMEOUT_MS)
+  ExitCode = 1
+  w_GetExitCodeProcess(PI.hProcess, ExitCode)
   IF PI.hThread  THEN w_CloseHandle(PI.hThread).
   IF PI.hProcess THEN w_CloseHandle(PI.hProcess).
 
-  ! Diagnostic so a single Dell logon test is conclusive: how Paint was launched
-  ! (via=cmd64 means through the 64-bit cmd), what was launched, how many Paint
-  ! processes we tracked, whether a real window ever appeared (hidWin), and how
-  ! many we terminated. hidWin=0 means Paint never showed a window we saw.
-  LogEvent(EVENTLOG_INFORMATION_TYPE, 'alias launch: via=' & CLIP(LaunchVia) & |
-        ' cmd=' & CLIP(CmdLine) & ' newPid=' & LaunchedPid & |
-        ' targets=' & RECORDS(TargetQ) & ' hidWin=' & HidAny & |
-        ' terminated=' & KillCount)
-  RETURN(1)
+  ! Diagnostic so a single Dell logon test is conclusive.
+  LogEvent(EVENTLOG_INFORMATION_TYPE, 'alias launch: via=ps64 alias=' & CLIP(AliasPath) & |
+        ' helperExit=' & ExitCode & ' wait=' & WaitRes)
+
+  RETURN(CHOOSE(ExitCode = 0, 1, 0))
 
 ! ===========================================================================
 ! Orchestration: alias launch first (the proven fix); then classic desktop
