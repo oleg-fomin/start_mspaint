@@ -61,6 +61,9 @@ if "%_rc%"=="0" (
     rem The 64-bit launch helper must sit next to the exe (the 32-bit exe runs it
     rem via 64-bit PowerShell to launch Paint hidden in a native 64-bit context).
     if exist "%~dp00release\ArcInputFix.exe" copy /y "%~dp0launch-paint-hidden.ps1" "%~dp00release\" >nul
+    rem run-hidden.vbs: optional zero-flash launcher when running the helper
+    rem directly as a scheduled task (wscript starts PowerShell with SW_HIDE).
+    if exist "%~dp00release\ArcInputFix.exe" copy /y "%~dp0run-hidden.vbs" "%~dp00release\" >nul
     echo [OK] Built ArcInputFix.exe with ClaRUN.dll runtime and launch helper
 ) else (
     echo [ERROR] Build failed with code %_rc%.
