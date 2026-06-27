@@ -453,6 +453,18 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
     child). Conclusion: ship the proven 64-bit C++ ArcInputFix.exe or start_mspaint.ps1;
     Clarion classic (32-bit) can't deliver this specific hardware fix.
 
+## Round 12 - SOLVED on Dell (via=cmd64). Flicker reduced.
+- Dell test (Round 11 build): caption-drag + border-resize WORK. The 64-bit cmd
+  launch context was the missing piece. Clarion port now reaches parity with the
+  C++ Round 9 fix.
+- DRAWBACK: brief screen flicker - Paint's window showed for up to ~200ms before
+  the poll loop caught + hid it.
+- NOTE: Paint MUST render (pre-hidden SW_HIDE launch did NOT fix - Round 10), so we
+  can't open it fully hidden. Instead tightened the detect-and-hide loop from
+  PumpMessages(200) x50 to PumpMessages(15) x600: Paint is now hidden within ~1
+  frame of appearing, so the render still happens (fix preserved) but the visible
+  flash drops from ~12 frames to ~1. Dev: exit 0, hidWin=1, ~9s (8s dwell dominates).
+
 ### Clarion porting notes (worked)
 - ANSI (A) Win32 APIs via MODULE('WINAPI') prototypes, distinct w_ names +
   NAME('FnA'); link via PRAGMA('link(WIN32.LIB)'). All needed symbols

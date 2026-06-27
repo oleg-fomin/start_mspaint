@@ -361,9 +361,13 @@ hProc                  LONG
     ADD(TargetQ)
   END
 
-  ! Wait (pumping messages) for Paint's window to appear, then hide it.
+  ! Poll tightly for Paint's window to appear, then hide it within ~one frame.
+  ! Paint MUST render (its WinUI3/CoreWindow input+composition stack init is the
+  ! actual trigger - launching it pre-hidden does NOT fix the bug), but it only
+  ! needs to be visible for a frame or two. Catching it every ~15ms instead of
+  ! every 200ms cuts the visible flash from ~12 frames to ~1, killing the flicker.
   HidAny = 0
-  LOOP I = 1 TO 50                                   ! up to ~10s
+  LOOP I = 1 TO 600                                  ! ~15ms x 600 = up to ~10s
     SnapshotPaintPids()
     LOOP J = 1 TO RECORDS(ScanQ)
       GET(ScanQ, J)
@@ -377,7 +381,7 @@ hProc                  LONG
       IF HideWindowsOfPid(TQ:Pid) THEN HidAny = 1.
     END
     IF HidAny THEN BREAK.
-    PumpMessages(200)
+    PumpMessages(15)
   END
 
   ! Dwell while pumping so Paint completes the session-wide init that re-arms the
