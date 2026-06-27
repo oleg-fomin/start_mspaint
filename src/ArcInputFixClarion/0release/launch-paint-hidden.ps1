@@ -26,11 +26,12 @@
          non-client input path.
       5. TerminateProcess every target.
 
+    Takes no parameters: it resolves Paint's App Execution Alias itself, so it can
+    run standalone (e.g. as a scheduled task on user logon) as well as being invoked
+    by ArcInputFix.exe.
+
     Exit code 0 = launched + handled; non-zero = failure (logged by the caller).
 #>
-param(
-    [Parameter(Mandatory = $true)][string]$AliasPath
-)
 
 $ErrorActionPreference = 'Stop'
 
@@ -118,8 +119,14 @@ function Get-PaintPids {
 # 1) Snapshot existing Paint PIDs so we can tell which are newly spawned.
 $before = @(Get-PaintPids)
 
-# 2) Launch the alias genuinely hidden (STARTF_USESHOWWINDOW + SW_HIDE), exactly
-#    like the proven C++ exe. Guaranteed-valid working dir avoids ERROR_INVALID_NAME.
+# 2) Resolve Paint's App Execution Alias under %LOCALAPPDATA%\Microsoft\WindowsApps,
+#    else fall back to a bare PATH search ("mspaint.exe"), then launch it genuinely
+#    hidden (STARTF_USESHOWWINDOW + SW_HIDE), exactly like the proven C++ exe.
+#    Guaranteed-valid working dir avoids ERROR_INVALID_NAME.
+$AliasPath = 'mspaint.exe'
+$wa = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\mspaint.exe'
+if (Test-Path -LiteralPath $wa) { $AliasPath = $wa }
+
 $si = New-Object ArcFix.Native+STARTUPINFO
 $si.cb          = [System.Runtime.InteropServices.Marshal]::SizeOf($si)
 $si.dwFlags     = $STARTF_USESHOWWINDOW

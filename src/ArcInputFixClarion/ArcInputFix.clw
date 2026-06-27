@@ -278,8 +278,6 @@ K                      LONG
 ! ===========================================================================
 LaunchPaintViaAlias  PROCEDURE()
 EnvName                CSTRING(20)
-LocalApp               CSTRING(261)
-AliasPath              CSTRING(320)
 WinDir                 CSTRING(261)
 Ps64                   CSTRING(360)
 ExeFull                CSTRING(320)
@@ -294,24 +292,13 @@ PI                     LIKE(PROCESS_INFORMATION)
 ExitCode               ULONG
 WaitRes                ULONG
   CODE
-  ! Resolve the alias path; fall back to a bare PATH search ("mspaint.exe"),
-  ! since %LOCALAPPDATA%\Microsoft\WindowsApps is on the user's PATH.
-  AliasPath = 'mspaint.exe'
-  EnvName = 'LOCALAPPDATA'
-  N = w_GetEnvironmentVariable(EnvName, LocalApp, SIZE(LocalApp))
-  IF N > 0 AND N < SIZE(LocalApp)
-    AliasPath = CLIP(LocalApp) & '\Microsoft\WindowsApps\mspaint.exe'
-    IF w_GetFileAttributes(AliasPath) = INVALID_FILE_ATTRIBUTES
-      AliasPath = 'mspaint.exe'
-    END
-  END
-
   ! Clarion classic is 32-bit; a 32-bit (WOW64) CreateProcess of the alias shows
   ! Paint but does NOT re-arm the input path on the Dell, and cmd.exe cannot pass
   ! SW_HIDE to the child (so it flickered). Delegate the launch to 64-bit Windows
   ! PowerShell running launch-paint-hidden.ps1, which does the IDENTICAL Win32
   ! CreateProcess(alias) with STARTF_USESHOWWINDOW + SW_HIDE as the proven C++ exe:
-  ! native 64-bit context (the fix) AND genuinely hidden (no flicker).
+  ! native 64-bit context (the fix) AND genuinely hidden (no flicker). The helper
+  ! resolves the alias path itself, so it also runs standalone (e.g. as a logon task).
 
   ! 64-bit PowerShell as seen from this 32-bit process (Sysnative -> real System32).
   EnvName = 'windir'
@@ -348,8 +335,7 @@ WaitRes                ULONG
   IF NOT w_GetSystemDirectory(SysDir, SIZE(SysDir)) THEN SysDir = ''.
 
   CmdLine = '"' & CLIP(Ps64) & '" -NoProfile -ExecutionPolicy Bypass -NonInteractive' |
-          & ' -WindowStyle Hidden -File "' & CLIP(HelperPath) & '"' |
-          & ' -AliasPath "' & CLIP(AliasPath) & '"'
+          & ' -WindowStyle Hidden -File "' & CLIP(HelperPath) & '"'
 
   ! Run the helper hidden + windowless; wait for it to finish the launch + dwell.
   CLEAR(SI)
@@ -370,7 +356,7 @@ WaitRes                ULONG
   IF PI.hProcess THEN w_CloseHandle(PI.hProcess).
 
   ! Diagnostic so a single Dell logon test is conclusive.
-  LogEvent(EVENTLOG_INFORMATION_TYPE, 'alias launch: via=ps64 alias=' & CLIP(AliasPath) & |
+  LogEvent(EVENTLOG_INFORMATION_TYPE, 'alias launch: via=ps64 helper=' & CLIP(HelperPath) & |
         ' helperExit=' & ExitCode & ' wait=' & WaitRes)
 
   RETURN(CHOOSE(ExitCode = 0, 1, 0))
