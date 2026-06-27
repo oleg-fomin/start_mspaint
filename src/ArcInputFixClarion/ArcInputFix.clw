@@ -7,9 +7,13 @@
 !
 ! This is a GUI-subsystem exe (Clarion exes have no console). It launches Paint
 ! exactly the way typing "mspaint" in a prompt does - via its App Execution Alias
-! - lets it reach its interactive state hidden, then terminates it. On the
-! affected hardware that single launch re-arms the non-client input path for the
-! session. The alias launch is the proven fix.
+! - lets it reach its interactive state (it shows briefly so the WinUI3/CoreWindow
+! input+composition stack initializes, then we hide it once its window appears),
+! then terminates it. On the affected hardware that single launch re-arms the
+! non-client input path for the session. The alias launch is the proven fix.
+! IMPORTANT: Paint is NOT launched pre-hidden (no STARTF_USESHOWWINDOW/SW_HIDE) -
+! that matches the proven C++ Round 8/9 path; a pre-hidden Paint may never spin up
+! the input/composition stack that is the actual trigger.
 !
 ! Faithful port of src/ArcInputFix/ArcInputFix.cpp. Scope per project decision:
 ! the App Execution Alias launch + classic mspaint.exe CreateProcess paths only.
@@ -17,7 +21,7 @@
 ! omitted - the alias path already launches packaged Paint on 25H2.
 !
 ! Build: see build.cmd (Clarion 11, MSBuild via ClarionCL/SoftVelocity targets,
-! Win32, static runtime Model=Lib). 32-bit exe runs under WOW64.
+! Win32, Model=Dll - needs ClaRUN.dll beside the exe). 32-bit exe runs under WOW64.
 
   PRAGMA('link(WIN32.LIB)')                  ! Windows API import library
 
@@ -270,14 +274,21 @@ K                      LONG
 ! ===========================================================================
 LaunchPaintViaAlias  PROCEDURE()
 EnvName                CSTRING(20)
-CmdLine                CSTRING(320)
+CmdLine                CSTRING(420)
 LocalApp               CSTRING(261)
 AliasPath              CSTRING(320)
+InnerTarget            CSTRING(320)
+WinDir                 CSTRING(261)
+SysCmd                 CSTRING(320)
+LaunchVia              CSTRING(8)
+CreFlags               ULONG
 SysDir                 CSTRING(261)
 N                      ULONG
 SI                     LIKE(STARTUPINFO)
 PI                     LIKE(PROCESS_INFORMATION)
 HidAny                 BYTE
+KillCount              LONG
+LaunchedPid            ULONG
 I                      LONG
 J                      LONG
 hProc                  LONG
@@ -306,23 +317,46 @@ hProc                  LONG
   ! Guaranteed-valid working dir to avoid ERROR_INVALID_NAME (123).
   IF NOT w_GetSystemDirectory(SysDir, SIZE(SysDir)) THEN SysDir = ''.
 
-  ! Launch the alias hidden (STARTF_USESHOWWINDOW + SW_HIDE). A packaged app may
-  ! ignore the show-window hint, so the post-launch EnumWindows hide remains.
+  ! Round 11: launch Paint through the 64-bit cmd.exe so the packaged app is
+  ! created in a NATIVE 64-bit context. On the Dell, a direct CreateProcess from
+  ! this 32-bit (WOW64) exe shows Paint (hidWin=1) but does NOT re-arm the input
+  ! path; the 64-bit C++ exe does. %WINDIR%\Sysnative\cmd.exe is the 64-bit cmd
+  ! as seen from a 32-bit process. 'cmd /s /c "<alias>"' makes the 64-bit cmd the
+  ! direct parent of Paint (no 'start', so the parent context is preserved).
+  InnerTarget = CmdLine                              ! quoted alias path, else 'mspaint.exe'
+  LaunchVia   = 'direct'
+  CreFlags    = 0
+  EnvName = 'windir'
+  N = w_GetEnvironmentVariable(EnvName, WinDir, SIZE(WinDir))
+  IF N > 0 AND N < SIZE(WinDir)
+    SysCmd = CLIP(WinDir) & '\Sysnative\cmd.exe'
+    IF w_GetFileAttributes(SysCmd) <> INVALID_FILE_ATTRIBUTES
+      CmdLine   = '"' & CLIP(SysCmd) & '" /s /c "' & CLIP(InnerTarget) & '"'
+      LaunchVia = 'cmd64'
+      CreFlags  = CREATE_NO_WINDOW                    ! no console flash for cmd
+    END
+  END
+
+  ! Launch WITHOUT forcing SW_HIDE - exactly like typing "mspaint" at a prompt
+  ! (the proven manual / C++ Round 8/9 path). Paint shows briefly so its
+  ! WinUI3/CoreWindow input+composition stack initializes (that init is the actual
+  ! trigger); the post-launch EnumWindows pass then hides the window. Launching it
+  ! pre-hidden can suppress that init and is why the bug persists on the Dell.
   CLEAR(SI)
   SI.cb = SIZE(SI)
-  SI.dwFlags = STARTF_USESHOWWINDOW
-  SI.wShowWindow = SW_HIDE
   CLEAR(PI)
-  IF NOT w_CreateProcess(0, CmdLine, 0, 0, 0, 0, 0, |
+  IF NOT w_CreateProcess(0, CmdLine, 0, 0, 0, CreFlags, 0, |
         CHOOSE(SysDir <> '', ADDRESS(SysDir), 0), SI, PI)
     LogEvent(EVENTLOG_ERROR_TYPE, 'CreateProcess(mspaint alias) failed: ' & w_GetLastError())
     RETURN(0)
   END
+  LaunchedPid = PI.dwProcessId
 
-  ! Target set: the launched PID plus any new Paint processes that appear (the
-  ! alias may spawn the real app under another PID).
+  ! Target set: the real Paint process(es) found by snapshot diff. In cmd64 mode
+  ! the launched PID is the cmd shell (not Paint), so only seed the launched PID
+  ! as a target for the direct path.
   FREE(TargetQ)
-  IF PI.dwProcessId <> 0
+  IF LaunchVia = 'direct' AND PI.dwProcessId <> 0
     TQ:Pid = PI.dwProcessId
     ADD(TargetQ)
   END
@@ -350,16 +384,27 @@ hProc                  LONG
   ! non-client input path, then terminate every target.
   PumpMessages(8000)
 
+  KillCount = 0
   LOOP J = 1 TO RECORDS(TargetQ)
     GET(TargetQ, J)
     hProc = w_OpenProcess(PROCESS_TERMINATE, 0, TQ:Pid)
     IF hProc
       w_TerminateProcess(hProc, 0)
       w_CloseHandle(hProc)
+      KillCount += 1
     END
   END
   IF PI.hThread  THEN w_CloseHandle(PI.hThread).
   IF PI.hProcess THEN w_CloseHandle(PI.hProcess).
+
+  ! Diagnostic so a single Dell logon test is conclusive: how Paint was launched
+  ! (via=cmd64 means through the 64-bit cmd), what was launched, how many Paint
+  ! processes we tracked, whether a real window ever appeared (hidWin), and how
+  ! many we terminated. hidWin=0 means Paint never showed a window we saw.
+  LogEvent(EVENTLOG_INFORMATION_TYPE, 'alias launch: via=' & CLIP(LaunchVia) & |
+        ' cmd=' & CLIP(CmdLine) & ' newPid=' & LaunchedPid & |
+        ' targets=' & RECORDS(TargetQ) & ' hidWin=' & HidAny & |
+        ' terminated=' & KillCount)
   RETURN(1)
 
 ! ===========================================================================

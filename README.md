@@ -399,6 +399,60 @@ Event Log "ArcInputFix mspaint succeeded"; x86 GUI-subsystem (windowless).
 - echo text inside cmd if() blocks must NOT contain literal ) -> breaks the
   block (caused a spurious "[ERROR] ... code 0"). Avoid parens in echo.
 
+## Round 10 - Clarion alias launch FAILED on Dell; root cause = forced SW_HIDE
+- Dell test: Clarion ArcInputFix.exe (alias launch) ran ~19s then exited 0, but
+  Clarion MDI caption-drag + border-resize STILL did not work.
+- DIAGNOSIS: the Clarion port forced STARTF_USESHOWWINDOW + SW_HIDE in STARTUPINFO
+  at CreateProcess time. The PROVEN C++ Round 8/9 alias path used NO forced SW_HIDE
+  ("match manual") - Paint shows briefly, then is hidden ONLY AFTER its window
+  appears. A pre-hidden Paint never spins up the WinUI3/CoreWindow input+composition
+  stack that Round 9 identified as the actual trigger. The ~19s runtime was the tell:
+  the wait loop never broke early => no visible Paint window was ever found/hidden
+  (HidAny stayed 0) even on the dev box.
+- FIX (Round 10): LaunchPaintViaAlias no longer sets STARTF_USESHOWWINDOW/SW_HIDE
+  (CLEAR(SI) only). Paint launches with default show (like typing "mspaint"); the
+  existing post-launch EnumWindows pass hides it once its window appears. Added an
+  Event Log diagnostic line: cmd=, newPid=, targets=, hidWin=, terminated=.
+- DEV VERIFICATION: runtime dropped 19s -> ~9s (wait loop now breaks early). Log:
+  'alias launch: cmd="...\WindowsApps\mspaint.exe" newPid=29504 targets=1 hidWin=1
+  terminated=1' (hidWin=1 = a real Paint window appeared and was hidden; was 0 before).
+NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix.exe
+  (ship ClaRUN.dll beside it) -> does caption-drag/border-resize work now?
+  Read the 'alias launch:' Event Log line to confirm hidWin=1 on the Dell too.
+  - If YES -> Clarion port reaches parity with C++ Round 9; lock as deliverable.
+  - If NO but hidWin=1 -> Paint DID show+init yet still no fix => 32-bit (WOW64)
+    parent context is the differentiator vs the 64-bit C++ exe; consider building/
+    shipping the C++ exe instead, or a 64-bit launcher.
+  - If hidWin=0 on Dell -> packaged Paint ran under a name not in the detection list
+    (mspaint.exe/PaintApp.exe/Paint.exe); widen the list.
+
+## Round 11 - bitness CONFIRMED as cause; launch Paint via 64-bit cmd (Sysnative)
+- Dell test (Round 10 build, no forced SW_HIDE): Paint NOW opened VISIBLY + lingered
+  in Task Manager, log 'alias launch: cmd="...\WindowsApps\mspaint.exe" newPid=21904
+  targets=1 hidWin=1 terminated=1' - so Paint genuinely launched+showed+was killed -
+  but the bug was STILL not fixed.
+- DECISIVE COMPARISON: on the SAME Dell, the 64-bit C++ ArcInputFix.exe DOES fix it.
+  => Paint lifecycle is NOT the differentiator; the LAUNCHER's bitness is. A 32-bit
+  (WOW64) parent doing CreateProcess(alias) shows Paint but does not re-arm the
+  session input path; a native 64-bit parent does. Clarion classic is 32-bit only.
+- FIX (Round 11, option B): LaunchPaintViaAlias now launches Paint THROUGH the 64-bit
+  cmd so Paint is created in a native 64-bit context:
+  CreateProcess('%WINDIR%\Sysnative\cmd.exe /s /c "<alias>"', CREATE_NO_WINDOW).
+  Sysnative = the real 64-bit System32 as seen from a 32-bit process; no 'start' so
+  the 64-bit cmd is Paint's DIRECT parent. Snapshot diff still finds+hides+kills the
+  real Paint (the launched PID is now the cmd shell, excluded from the target set in
+  cmd64 mode). Falls back to direct 32-bit launch if Sysnative\cmd.exe is absent.
+  Diagnostic line now includes via=cmd64|direct.
+- DEV VERIFY: via=cmd64, cmd="C:\WINDOWS\Sysnative\cmd.exe" /s /c ""...\mspaint.exe"",
+  targets=1 hidWin=1 terminated=1, ~9s. Ready for Dell test.
+NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix.exe
+  (with ClaRUN.dll beside it) -> does caption-drag/border-resize work now?
+  - If YES -> the 64-bit launch context was the missing piece; lock as deliverable.
+  - If NO -> a 32-bit process cannot trigger the fix even via a 64-bit child launcher
+    (the re-arm likely keys off the ORIGINATING process token/bitness, not the cmd
+    child). Conclusion: ship the proven 64-bit C++ ArcInputFix.exe or start_mspaint.ps1;
+    Clarion classic (32-bit) can't deliver this specific hardware fix.
+
 ### Clarion porting notes (worked)
 - ANSI (A) Win32 APIs via MODULE('WINAPI') prototypes, distinct w_ names +
   NAME('FnA'); link via PRAGMA('link(WIN32.LIB)'). All needed symbols
