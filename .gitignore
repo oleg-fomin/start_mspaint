@@ -6,6 +6,10 @@ obj/
 *.vcxproj.user
 *.pdb
 
+# MSIX package build outputs (ArcInputFixWarmup)
+*.msix
+*.cer
+
 # Clarion Build artifacts
 *.exe
 *.lib

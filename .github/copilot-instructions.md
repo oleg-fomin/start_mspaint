@@ -38,6 +38,19 @@ What was tried and **does NOT fix it** (don't suggest these again):
 2. `start_mspaint.ps1` — PowerShell workaround (classic CreateProcess or packaged
    activation), launched hidden by `start_mspaint.cmd`.
 
+## Owned MSIX helper (removes the Paint dependency)
+
+`src/ArcInputFixWarmup/` is the owned, package-identity replacement for depending on
+Paint. It is a windowless Win32 exe (`ArcInputFixWarmup.cpp`) that spins up the same
+in-box stack a packaged WinUI 3 app does — `CreateDispatcherQueueController` +
+`Windows.UI.Composition.Compositor` + `ICompositorDesktopInterop` /
+`IDesktopWindowTarget` on a hidden top-level window — then exits. That exact warm-up
+failed as a plain Win32 exe **only because it lacked package identity**; wrapping it in
+the MSIX (`AppxManifest.xml`, with a `runFullTrust` `Windows.FullTrustApplication` entry
+point + an App Execution Alias `ArcInputFixWarmup.exe`) supplies the missing identity.
+The logon task launches it via that alias (the proven CreateProcess-with-identity path).
+See `docs/test-warmup-helper.md`.
+
 ## Repo layout
 
 - `src/ArcInputFix/ArcInputFix.cpp` — the utility. **Single purpose**: always runs
@@ -53,6 +66,14 @@ What was tried and **does NOT fix it** (don't suggest these again):
   and registers a hidden **At-logon** scheduled task running as the interactive user
   (`S-1-5-32-545`, `Limited`), **no arguments**. `-Uninstall` removes it.
 - `deploy/ArcInputFix-Logon.xml` — reference scheduled-task template.
+- `src/ArcInputFixWarmup/ArcInputFixWarmup.cpp` — the owned warm-up helper (windowless
+  GUI-subsystem exe; raw ABI WinRT, no Windows App SDK / NuGet). `AppxManifest.xml`,
+  `build.cmd` (compile → `makeappx` pack → `signtool` sign), and `New-Assets.ps1` /
+  `New-DevCert.ps1` build/pack/sign it. `.sln`/`.vcxproj` for editing/debugging in VS.
+- `deploy/Install-ArcInputFixWarmup.ps1` — registers the MSIX (`Add-AppxPackage`) and a
+  hidden At-logon task that launches it via its App Execution Alias
+  (`%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixWarmup.exe`). `-Uninstall` removes
+  both; `-DevCert` trusts the self-signed test cert.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 
@@ -69,11 +90,14 @@ What was tried and **does NOT fix it** (don't suggest these again):
 - **Code signing is not yet available** — blocks shipping a custom MSIX helper to the
   fleet. The current ship is the unsigned alias-launch exe / PS script.
 
-## Open next step (for Visual Studio)
+## Open next step
 
-To drop the dependency on Paint being installed, build an **owned minimal MSIX
-WinUI 3 / CoreWindow helper** that has package identity and spins up the lifted
-input/composition stack itself, then exits. This needs the Windows App SDK and code
-signing — hence best done in **Visual Studio** (WinUI 3 + Windows Application Packaging
-project templates, MSIX identity, signing, deploy-with-identity F5 loop). See
-`docs/handoff-visual-studio.md` for the task brief.
+The owned MSIX helper is now **scaffolded** in `src/ArcInputFixWarmup/` (see above) and
+compiles clean with `/W4`. Remaining before fleet rollout:
+1. Obtain a real code-signing cert and set `SIGN_PFX` for `build.cmd`; update
+   `AppxManifest.xml`'s `Identity/Publisher` to the cert subject exactly.
+2. Validate on 268V hardware from a fresh broken logon per `docs/test-warmup-helper.md`
+   (confirm caption drag / border resize / min-max-close re-arm **without** Paint and
+   with no visible window flash).
+3. If confirmed, switch the fleet logon task from `ArcInputFix` to `ArcInputFixWarmup`;
+   keep the Paint-alias `ArcInputFix.exe` as the documented fallback.

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ArcInputFixWarmup MSIX package manifest.
+
+  This wraps the windowless ArcInputFixWarmup.exe in a package so it runs with
+  PACKAGE IDENTITY - the missing ingredient that makes the in-box composition /
+  input warm-up actually re-arm the Intel Arc non-client-mouse path. The same
+  warm-up as a plain (identity-less) Win32 exe did NOT fix the session.
+
+  Notes for signing (required before the package will register):
+    * Publisher below MUST match the Subject of the signing certificate exactly,
+      e.g. CN=Contoso Ltd, O=Contoso Ltd, C=US. Update it to your cert subject.
+    * Identity/Name and the certificate together define the package family; keep
+      them stable across the fleet so updates install in place.
+    * Build/pack/sign is automated by build.cmd (makeappx + signtool).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="ArcInputFix.Warmup"
+    Publisher="CN=ArcInputFix Dev"
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Arc Input Fix Warm-up</DisplayName>
+    <PublisherDisplayName>ArcInputFix</PublisherDisplayName>
+    <Description>Re-arms the Intel Arc (Core Ultra 268V) non-client mouse input path at logon by briefly spinning up the WinUI 3 composition/input stack with package identity.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.22000.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="ArcInputFixWarmup"
+      Executable="ArcInputFixWarmup.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Arc Input Fix Warm-up"
+        Description="Re-arms the non-client mouse input path at logon."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        AppListEntry="none">
+        <uap:DefaultTile Square71x71Logo="Assets\SmallTile.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- App Execution Alias: lets the helper be launched the same proven way
+             as the Paint alias (CreateProcess on a PATH reparse point that runs
+             the packaged app with identity in the interactive session). -->
+        <uap3:Extension Category="windows.appExecutionAlias">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="ArcInputFixWarmup.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
