@@ -21,10 +21,15 @@
 // conditions above - then exits.
 //
 // RESULT: TESTED ON 268V HARDWARE - THIS DOES NOT FIX THE BUG. So identity + the
-// in-box composition/input warm-up is necessary-but-NOT-sufficient; real packaged
-// Paint does something more that is not yet identified. Keep shipping the proven
-// Paint-alias ArcInputFix.exe. This source is retained as a documented dead-end
-// and a base for differential diagnosis (see docs/test-warmup-helper.md).
+// in-box composition/input warm-up is necessary-but-NOT-sufficient. The Dell
+// module capture (tools/fixdiff-out/mspaint-modules.csv) shows real Paint loads
+// the LIFTED Windows App SDK 1.8 Microsoft.UI.* input stack (Microsoft.UI.Input /
+// InputStateManager / UI.Windowing / Composition.OSSupport) - which THIS helper
+// never loads because it uses only the in-box Windows.UI.Composition.Compositor.
+// That lifted input stack is the leading candidate for the missing ingredient.
+// Keep shipping the proven Paint-alias ArcInputFix.exe. This source is retained as
+// a documented dead-end and a base for the lifted-stack experiment (see
+// docs/test-warmup-helper.md).
 //
 // It is windowless: the composition target is hosted on a hidden top-level window
 // that is never shown (WS_POPUP, no WS_VISIBLE, WS_EX_TOOLWINDOW), so there is no

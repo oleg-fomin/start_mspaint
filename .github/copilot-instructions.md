@@ -116,13 +116,24 @@ whole trigger. Do **not** re-attempt the same warm-up expecting a different resu
 
 Current ship stays the proven Paint-alias `ArcInputFix.exe` (64-bit) / `start_mspaint.ps1`.
 
-To make progress on dropping the Paint dependency, the next move is **differential
-diagnosis**, not another blind warm-up:
-1. From a fresh broken logon, capture what *real packaged Paint* does that the owned
-   helper does not — loaded modules, opened handles/devices, RPC/ALPC ports, services
-   touched — using `tools/Capture-Modules.ps1` (and a one-off Procmon via
-   `-WithProcmon`), once for the Paint-alias run and once for the helper run, then diff.
-2. Form a single new hypothesis from the diff (a specific DLL/COM server/handle Paint
-   initialises) and test only that.
-3. Only if a concrete differentiator is found and validated, revisit the helper; keep
+**Diagnostic data already captured** (`tools/Capture-Modules.ps1` was run on the Dell):
+the outputs live in `tools/fixdiff-out/` — `mspaint-modules.csv` (Paint's loaded DLLs),
+`mspaint-children.csv` (empty: Paint is in-process), and `services|processes|drivers-{before,during,after}.csv`.
+
+The module capture surfaces a concrete differentiator: real Paint loads the **lifted
+Windows App SDK 1.8 `Microsoft.UI.*` input/composition stack** —
+`Microsoft.UI.Input.dll`, `Microsoft.InputStateManager.dll`, `Microsoft.UI.Windowing.dll`,
+`Microsoft.UI.Composition.OSSupport.dll`, `Microsoft.Internal.FrameworkUdk.dll`, plus
+`CoreMessagingXP.dll` / `dcompi.dll` / `dwmcorei.dll` / `wuceffectsi.dll` (all from
+`Microsoft.WindowsAppRuntime.1.8`). Our helper used only the **in-box**
+`Windows.UI.Composition.Compositor` and therefore **never loaded the lifted
+`Microsoft.UI.Input` / `InputStateManager` stack** — the most likely missing ingredient.
+
+Next move (single new hypothesis, not another blind warm-up):
+1. Build a helper that initialises the **lifted Microsoft.UI input stack** (Windows App
+   SDK `Microsoft.UI.Input` / `InputStateManager`, e.g. an `InputPointerSource` /
+   `Microsoft.UI.Windowing.AppWindow`), still under package identity, and test only that.
+   This contradicts the earlier "no NuGet / in-box only" choice — that choice is exactly
+   why the helper missed this stack.
+2. If a concrete differentiator is confirmed, revisit the helper; keep
    `ArcInputFix.exe` as the shipped fix meanwhile.

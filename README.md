@@ -534,9 +534,18 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   identified). Ship stays the proven 64-bit C++ ArcInputFix.exe (alias launch) /
   start_mspaint.ps1. src/ArcInputFixWarmup/ is retained as a documented dead-end +
   a base for module-diff investigation (see docs/test-warmup-helper.md).
-- NEXT (differential diagnosis, NOT another blind warm-up): from a fresh broken
-  logon capture what real Paint does that the helper does not - loaded modules,
-  handles/devices, RPC/ALPC ports, services - via tools/Capture-Modules.ps1
-  (+ one-off -WithProcmon), once for a Paint-alias run and once for a helper run,
-  then diff. Form ONE hypothesis (a specific DLL/COM server/handle) and test only
-  that. Keep ArcInputFix.exe as the shipped fix meanwhile.
+- NEXT (differential diagnosis from data ALREADY captured): tools/Capture-Modules.ps1
+  was already run on the Dell - outputs in tools/fixdiff-out/ (mspaint-modules.csv =
+  Paint's DLLs; mspaint-children.csv empty = in-process; services/processes/drivers
+  before|during|after). The module list pins a concrete differentiator: real Paint
+  loads the LIFTED Windows App SDK 1.8 Microsoft.UI.* input/composition stack -
+  Microsoft.UI.Input.dll, Microsoft.InputStateManager.dll, Microsoft.UI.Windowing.dll,
+  Microsoft.UI.Composition.OSSupport.dll, Microsoft.Internal.FrameworkUdk.dll, plus
+  CoreMessagingXP/dcompi/dwmcorei/wuceffectsi (all Microsoft.WindowsAppRuntime.1.8).
+  ArcInputFixWarmup used only the IN-BOX Windows.UI.Composition.Compositor, so it never
+  loaded the lifted Microsoft.UI.Input / InputStateManager stack = the most likely
+  missing ingredient. NEW HYPOTHESIS to test (one, not another blind warm-up): a
+  package-identity helper that spins up the LIFTED Microsoft.UI input stack (Windows App
+  SDK Microsoft.UI.Windowing.AppWindow + Microsoft.UI.Input.InputPointerSource), which
+  reverses the original "in-box only / no NuGet" choice that caused the miss. Keep
+  ArcInputFix.exe shipped meanwhile.

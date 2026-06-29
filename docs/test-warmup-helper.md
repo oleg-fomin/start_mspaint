@@ -111,16 +111,36 @@ packaged Paint (or the proven `ArcInputFix.exe`) in the same session still fixes
 confirming the session was genuinely in the broken state and that Paint, not the helper,
 carries the missing ingredient.
 
-### Next step now that it failed: differential diagnosis
+### Next step now that it failed: use the capture we already have
 
-Package identity + this in-box composition warm-up is insufficient; the differentiator
-is something else packaged Paint does. From a fresh broken logon, capture a
-module/handle/service diff of a **Paint-alias run** vs an **`ArcInputFixWarmup` run**
-with `tools/Capture-Modules.ps1` (add `-WithProcmon` for a one-off Procmon trace) and
-compare — look for a DLL/COM server/device/RPC-ALPC port/service that Paint touches and
-the helper does not. Form a single hypothesis from the diff and test only that. Until a
-concrete differentiator is found and validated, keep shipping the proven Paint-alias
-`ArcInputFix.exe`.
+`tools/Capture-Modules.ps1` has **already been run on the Dell**; its output is in
+`tools/fixdiff-out/`:
+
+- `mspaint-modules.csv` — every DLL real packaged Paint loaded.
+- `mspaint-children.csv` — empty (Paint is in-process; no child host process).
+- `services-{before,during,after}.csv`, `processes-*.csv`, `drivers-*.csv` — state diffs
+  around the Paint launch (the service deltas are Store-activation noise; see README
+  Round 4).
+
+That capture pins down a concrete differentiator. Real Paint loads the **lifted Windows
+App SDK 1.8 `Microsoft.UI.*` input/composition stack**:
+
+- `Microsoft.UI.Input.dll`, `Microsoft.InputStateManager.dll`
+- `Microsoft.UI.Windowing.dll`, `Microsoft.UI.Windowing.Core.dll`
+- `Microsoft.UI.Composition.OSSupport.dll`, `Microsoft.Internal.FrameworkUdk.dll`
+- `CoreMessagingXP.dll`, `dcompi.dll`, `dwmcorei.dll`, `wuceffectsi.dll`
+
+all from `Microsoft.WindowsAppRuntime.1.8`. **Our helper used only the in-box
+`Windows.UI.Composition.Compositor`** (deliberately, to avoid a NuGet / Windows App SDK
+dependency) and therefore never loaded the lifted `Microsoft.UI.Input` /
+`InputStateManager` stack — the most likely missing ingredient.
+
+So the next hypothesis to test (just one, not another blind warm-up): a package-identity
+helper that initialises the **lifted Microsoft.UI input stack** — e.g. a
+`Microsoft.UI.Windowing.AppWindow` + `Microsoft.UI.Input.InputPointerSource` via the
+Windows App SDK — and nothing else. That reverses the original "in-box only / no NuGet"
+choice, which is exactly why this helper missed the stack. Until that is built and
+validated on hardware, keep shipping the proven Paint-alias `ArcInputFix.exe`.
 
 ## Roll out / fall back
 
