@@ -14,10 +14,17 @@
 // The identity-less version of (3) - CreateDispatcherQueueController +
 // Windows.UI.Composition.Compositor + ICompositorDesktopInterop /
 // DesktopWindowTarget - was already tried as a plain Win32 exe and did NOT fix
-// the session. The ONLY thing it was missing was package identity. This exe runs
-// the SAME in-box warm-up, but is shipped inside a signed MSIX (see
-// AppxManifest.xml) and launched via its App Execution Alias, so it now runs with
-// package identity in the interactive session - the proven trigger - and exits.
+// the session, which suggested package identity was the missing ingredient. This
+// exe runs the SAME in-box warm-up, wrapped in a signed MSIX (see
+// AppxManifest.xml) and launched via its App Execution Alias, so it runs WITH
+// package identity in the interactive session - i.e. it satisfies all three
+// conditions above - then exits.
+//
+// RESULT: TESTED ON 268V HARDWARE - THIS DOES NOT FIX THE BUG. So identity + the
+// in-box composition/input warm-up is necessary-but-NOT-sufficient; real packaged
+// Paint does something more that is not yet identified. Keep shipping the proven
+// Paint-alias ArcInputFix.exe. This source is retained as a documented dead-end
+// and a base for differential diagnosis (see docs/test-warmup-helper.md).
 //
 // It is windowless: the composition target is hosted on a hidden top-level window
 // that is never shown (WS_POPUP, no WS_VISIBLE, WS_EX_TOOLWINDOW), so there is no

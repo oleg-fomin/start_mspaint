@@ -4,10 +4,14 @@
     scheduled task.
 
 .DESCRIPTION
-    The owned, package-identity alternative to the Paint-alias ArcInputFix.exe:
-    it briefly spins up the WinUI 3 composition/input stack with package identity
-    (the proven trigger) and exits, so the fleet no longer depends on Microsoft
-    Paint being installed.
+    Installs the owned, package-identity ArcInputFixWarmup helper that briefly
+    spins up the WinUI 3 composition/input stack with package identity and exits.
+
+    NOTE: this helper was TESTED on the 268V hardware and DID NOT fix the bug
+    (package identity + the in-box warm-up is necessary-but-not-sufficient). It is
+    retained only for further differential-diagnosis testing, not as a shipping
+    deliverable. The proven fix remains the Paint-alias ArcInputFix.exe /
+    start_mspaint.ps1. See docs/test-warmup-helper.md.
 
     Install does:
       1. (dev only) trusts the exported self-signed .cer if -DevCert is given, so
@@ -17,8 +21,8 @@
       3. Registers a hidden At-logon scheduled task that launches the helper via
          its App Execution Alias
          (%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixWarmup.exe) - the same
-         CreateProcess-with-identity launch that is proven to re-arm the input
-         path - running as the interactive user at least privilege, no arguments.
+         CreateProcess-with-identity launch the Paint alias uses - running as the
+         interactive user at least privilege, no arguments.
 
     Use -Uninstall to remove the task and the package.
 

@@ -509,3 +509,34 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   launch-paint-hidden.ps1 beside it) -> caption-drag/border-resize fixed AND no
   flicker? Expected YES (this is byte-for-byte the C++ launch, just hosted in a
   64-bit PowerShell helper instead of the 64-bit C++ exe).
+
+## Round 14 - Owned MSIX warm-up helper FAILED on Dell (Paint dependency stays)
+- GOAL: drop the Paint dependency with an owned, package-identity helper. Built
+  src/ArcInputFixWarmup/ - a windowless 64-bit Win32 exe that spins up the modern
+  in-box stack (CreateDispatcherQueueController + Windows.UI.Composition.Compositor
+  + ICompositorDesktopInterop::CreateDesktopWindowTarget on a hidden top-level
+  window, pump ~3s, exit), wrapped in a signed MSIX (AppxManifest.xml: runFullTrust
+  Windows.FullTrustApplication + App Execution Alias ArcInputFixWarmup.exe). The
+  At-logon task launches it via that alias - the SAME CreateProcess-with-identity
+  path the proven Paint alias uses. This satisfies ALL THREE Round 9 conditions:
+  package identity + CreateProcess child in the interactive session + the modern
+  WinUI3/CoreWindow composition+input stack.
+- BUILD: build.cmd compiles, generates placeholder assets, makeappx pack, signs
+  (self-signed dev cert by default; SIGN_PFX for release). Deploy via
+  deploy/Install-ArcInputFixWarmup.ps1 (Add-AppxPackage + hidden At-logon task,
+  -DevCert trusts the test cert). Dev: built clean /W4, packed+signed OK.
+- DELL TEST RESULT: DID NOT FIX. From a fresh broken logon, one run of the signed,
+  alias-launched helper did NOT re-arm caption drag / border resize / min-max-close.
+  Packaged Paint in the same session still fixes it.
+- CONCLUSION: the Round 9 signature is NECESSARY BUT NOT SUFFICIENT. Package
+  identity + the in-box composition/input warm-up is not the whole trigger - real
+  packaged Paint does something MORE that this minimal helper does not (not yet
+  identified). Ship stays the proven 64-bit C++ ArcInputFix.exe (alias launch) /
+  start_mspaint.ps1. src/ArcInputFixWarmup/ is retained as a documented dead-end +
+  a base for module-diff investigation (see docs/test-warmup-helper.md).
+- NEXT (differential diagnosis, NOT another blind warm-up): from a fresh broken
+  logon capture what real Paint does that the helper does not - loaded modules,
+  handles/devices, RPC/ALPC ports, services - via tools/Capture-Modules.ps1
+  (+ one-off -WithProcmon), once for a Paint-alias run and once for a helper run,
+  then diff. Form ONE hypothesis (a specific DLL/COM server/handle) and test only
+  that. Keep ArcInputFix.exe as the shipped fix meanwhile.

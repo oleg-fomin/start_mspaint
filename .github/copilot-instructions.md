@@ -10,17 +10,23 @@ mouse input** (caption drag, border resize, and the min/max/close caption button
 until some GUI app with package identity runs once per logon session. The fix persists
 for the whole session.
 
-## The solved root cause (do not re-litigate)
+## The proven fix and the (incomplete) root-cause signature
 
-The trigger requires **all** of:
+The **only** mechanism confirmed to fix the 268V hardware is launching **packaged
+Paint** via its **App Execution Alias**:
+`%LOCALAPPDATA%\Microsoft\WindowsApps\mspaint.exe` (a reparse-point alias on the user's
+PATH). `CreateProcess` on that alias launches packaged Paint with package identity
+directly in the interactive session and **re-arms the non-client input path**.
+
+From all experiments the trigger appears to **require** (necessary conditions):
 1. a process **with package identity**,
 2. launched as a **normal child via `CreateProcess`** in the **interactive session**,
 3. that spins up the modern **WinUI 3 / CoreWindow input + composition stack**.
 
-The proven mechanism is the **App Execution Alias**:
-`%LOCALAPPDATA%\Microsoft\WindowsApps\mspaint.exe` (a reparse-point alias on the user's
-PATH). `CreateProcess` on that alias launches packaged Paint with package identity
-directly in the interactive session and **re-arms the non-client input path**.
+**These three are NOT sufficient on their own** — see the owned-helper result below.
+Real packaged Paint does *something more* that our minimal helper does not, and that
+extra ingredient is **not yet identified**. Treat the signature as a lead, not a
+solved recipe.
 
 What was tried and **does NOT fix it** (don't suggest these again):
 - Identity-less Win32 warm-ups: `EnableMouseInPointer`, `DirectManipulationManager`,
@@ -31,6 +37,12 @@ What was tried and **does NOT fix it** (don't suggest these again):
   wrong context. (Paradox: the same activation fixes it from `powershell.exe` but not
   from a plain Win32 exe — the differentiator is launch method/identity context, not
   timing or message pumping.)
+- **Our owned MSIX helper `ArcInputFixWarmup`** (package identity + alias-launched
+  `CreateProcess` in the interactive session + the in-box composition/input warm-up,
+  i.e. ALL THREE conditions above) — **tested on 268V hardware and did NOT fix it.**
+  This is the result that demotes the signature to necessary-but-insufficient. A
+  32-bit (WOW64) launcher also does not work even when it does spin up Paint (see
+  `README.md` Round 11).
 
 ## Confirmed-working deliverables
 
@@ -38,18 +50,24 @@ What was tried and **does NOT fix it** (don't suggest these again):
 2. `start_mspaint.ps1` — PowerShell workaround (classic CreateProcess or packaged
    activation), launched hidden by `start_mspaint.cmd`.
 
-## Owned MSIX helper (removes the Paint dependency)
+## Owned MSIX helper (attempt to remove the Paint dependency) — TESTED, DID NOT FIX
 
-`src/ArcInputFixWarmup/` is the owned, package-identity replacement for depending on
-Paint. It is a windowless Win32 exe (`ArcInputFixWarmup.cpp`) that spins up the same
-in-box stack a packaged WinUI 3 app does — `CreateDispatcherQueueController` +
+`src/ArcInputFixWarmup/` is the owned, package-identity helper built to try to replace
+depending on Paint. It is a windowless Win32 exe (`ArcInputFixWarmup.cpp`) that spins up
+the same in-box stack a packaged WinUI 3 app does — `CreateDispatcherQueueController` +
 `Windows.UI.Composition.Compositor` + `ICompositorDesktopInterop` /
-`IDesktopWindowTarget` on a hidden top-level window — then exits. That exact warm-up
-failed as a plain Win32 exe **only because it lacked package identity**; wrapping it in
-the MSIX (`AppxManifest.xml`, with a `runFullTrust` `Windows.FullTrustApplication` entry
-point + an App Execution Alias `ArcInputFixWarmup.exe`) supplies the missing identity.
-The logon task launches it via that alias (the proven CreateProcess-with-identity path).
-See `docs/test-warmup-helper.md`.
+`IDesktopWindowTarget` on a hidden top-level window — then exits. It is wrapped in an
+MSIX (`AppxManifest.xml`, with a `runFullTrust` `Windows.FullTrustApplication` entry
+point + an App Execution Alias `ArcInputFixWarmup.exe`) to give it package identity, and
+the logon task launches it via that alias (the same CreateProcess-with-identity path the
+Paint alias uses).
+
+**Result (268V hardware): it does NOT fix the bug.** Despite satisfying all three
+necessary conditions, one run of the signed, alias-launched helper did not re-arm
+caption drag / border resize / min-max-close. So **package identity + the in-box
+composition/input warm-up is insufficient** — keep shipping the proven Paint-alias
+`ArcInputFix.exe`. The helper, its build, and `docs/test-warmup-helper.md` are retained
+as a documented dead-end and a base for further module-diff investigation.
 
 ## Repo layout
 
@@ -92,12 +110,19 @@ See `docs/test-warmup-helper.md`.
 
 ## Open next step
 
-The owned MSIX helper is now **scaffolded** in `src/ArcInputFixWarmup/` (see above) and
-compiles clean with `/W4`. Remaining before fleet rollout:
-1. Obtain a real code-signing cert and set `SIGN_PFX` for `build.cmd`; update
-   `AppxManifest.xml`'s `Identity/Publisher` to the cert subject exactly.
-2. Validate on 268V hardware from a fresh broken logon per `docs/test-warmup-helper.md`
-   (confirm caption drag / border resize / min-max-close re-arm **without** Paint and
-   with no visible window flash).
-3. If confirmed, switch the fleet logon task from `ArcInputFix` to `ArcInputFixWarmup`;
-   keep the Paint-alias `ArcInputFix.exe` as the documented fallback.
+The owned MSIX helper has been **tested on 268V hardware and did NOT fix the bug**
+(see above) — so package identity + the in-box composition/input warm-up is *not* the
+whole trigger. Do **not** re-attempt the same warm-up expecting a different result.
+
+Current ship stays the proven Paint-alias `ArcInputFix.exe` (64-bit) / `start_mspaint.ps1`.
+
+To make progress on dropping the Paint dependency, the next move is **differential
+diagnosis**, not another blind warm-up:
+1. From a fresh broken logon, capture what *real packaged Paint* does that the owned
+   helper does not — loaded modules, opened handles/devices, RPC/ALPC ports, services
+   touched — using `tools/Capture-Modules.ps1` (and a one-off Procmon via
+   `-WithProcmon`), once for the Paint-alias run and once for the helper run, then diff.
+2. Form a single new hypothesis from the diff (a specific DLL/COM server/handle Paint
+   initialises) and test only that.
+3. Only if a concrete differentiator is found and validated, revisit the helper; keep
+   `ArcInputFix.exe` as the shipped fix meanwhile.

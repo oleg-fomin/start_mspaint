@@ -3,9 +3,12 @@
   ArcInputFixWarmup MSIX package manifest.
 
   This wraps the windowless ArcInputFixWarmup.exe in a package so it runs with
-  PACKAGE IDENTITY - the missing ingredient that makes the in-box composition /
-  input warm-up actually re-arm the Intel Arc non-client-mouse path. The same
-  warm-up as a plain (identity-less) Win32 exe did NOT fix the session.
+  PACKAGE IDENTITY, to test whether identity + the in-box composition/input
+  warm-up re-arms the Intel Arc non-client-mouse path.
+
+  RESULT: tested on 268V hardware - it does NOT fix the bug. So identity is
+  necessary-but-not-sufficient; this package is retained as a documented
+  dead-end, not a shipping deliverable. See docs/test-warmup-helper.md.
 
   Notes for signing (required before the package will register):
     * Publisher below MUST match the Subject of the signing certificate exactly,
