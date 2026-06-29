@@ -1,0 +1,16 @@
+# Visual Studio
+.vs/
+
+# Build artifacts
+*.lib
+*.map
+*.FileList.xml
+*.obj
+*.exp
+*.shp
+*.rsc
+*.bpp
+*.ini
+TestMenu*.clw
+TestMenu.EXE.manifest
+
