@@ -1,7 +1,13 @@
 # Visual Studio
 .vs/
+bin/
+obj/
+*.vcxproj.filters
+*.vcxproj.user
+*.pdb
 
-# Build artifacts
+# Clarion Build artifacts
+*.exe
 *.lib
 *.map
 *.FileList.xml
@@ -13,4 +19,3 @@
 *.ini
 TestMenu*.clw
 TestMenu.EXE.manifest
-
