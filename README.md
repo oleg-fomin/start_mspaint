@@ -1,5 +1,7 @@
 # Plan: Logon utility to fix Intel Arc NC-mouse bug
 
+> **Status:** shipped alias fix — see [docs/handoff-visual-studio.md](docs/handoff-visual-studio.md).
+
 ## Context
 - Hardware: Dell Pro Plus, Core Ultra 7 268V (Lunar Lake), Intel Arc 140V iGPU, Windows 11.
 - Symptom: Clarion MDI child windows only respond to mouse in the CLIENT area.
