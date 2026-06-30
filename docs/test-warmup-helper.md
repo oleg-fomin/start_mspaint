@@ -210,3 +210,63 @@ event log, source `ArcInputFixLifted`). Uninstall with
 ```
 
 Removes the scheduled task and the registered package.
+
+## Round 16 - the launch context is the trigger (shell vs service)
+
+> **BREAKTHROUGH on 268V hardware.** `ArcInputFixLifted.exe` launched by the At-logon
+> **scheduled task** (automatically *and* via `Start-ScheduledTask`) does **NOT** fix the
+> bug. **Double-clicking the same alias**
+> (`%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe`) in **File Explorer
+> DOES.** The binary is correct; the missing ingredient is the **launch context**.
+
+The fix requires the helper to be launched **by the interactive shell (`explorer.exe`)
+inside the user's interactive logon session**, not spawned by the Task Scheduler service
+host. (This matches the earlier paradox where broker activation fixed the bug from
+`powershell.exe` but not from a plain service-spawned Win32 exe — the differentiator was
+always interactive-shell launch context.)
+
+### Reproduce the working context automatically at logon
+
+`explorer.exe` is what executes **Startup-folder shortcuts** and **`...\CurrentVersion\Run`
+values** at logon — the exact same launch path as a double-click. So we install one of
+those instead of a scheduled task.
+
+```powershell
+# Dell retest (current user; Startup shortcut = closest to the proven double-click):
+.\deploy\Install-ArcInputFixLifted-Shell.ps1 -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+
+# then LOG OFF and back on (do NOT run anything else first), and confirm the Clarion MDI
+# child already has working caption drag / border resize / min-max-close, with no flash.
+```
+
+Fleet rollout (every user, per-user alias resolution, package provisioned for all users):
+
+```powershell
+.\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope AllUsers
+```
+
+Uninstall (removes the shortcut / Run value and the package):
+
+```powershell
+.\deploy\Install-ArcInputFixLifted-Shell.ps1 -Uninstall
+```
+
+### Quick diagnostics (confirm the hypothesis without a reboot)
+
+In the interactive session, before relogon, launch the alias from each of these — all are
+explorer/interactive launches and are expected to fix the bug:
+
+- a normal (non-elevated) **PowerShell** window: `& "$env:LOCALAPPDATA\Microsoft\WindowsApps\ArcInputFixLifted.exe"`
+- the **Win+R** Run dialog: paste `%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe`
+
+If both fix it, the launch-context conclusion is confirmed and the Startup/Run installer
+will work at logon.
+
+### Outcome
+
+- **If the logon test fixes it:** sign `ArcInputFixLifted` with a real cert, switch to
+  `-Scope AllUsers` (HKLM `Run` + provisioned package), and ship it as the
+  Paint-independent deliverable. Keep `ArcInputFix.exe` as the fallback.
+- **If it still fails at logon** (but the manual double-click works): the trigger is even
+  narrower than "explorer-launched" — instrument the working double-click vs the
+  Startup/Run launch with Procmon and diff parent process / token / window-station.

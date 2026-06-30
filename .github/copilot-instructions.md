@@ -102,6 +102,13 @@ as a documented dead-end and a base for further module-diff investigation.
   **Builds clean; awaiting 268V hardware test.**
 - `deploy/Install-ArcInputFixLifted.ps1` — registers the Lifted MSIX + hidden At-logon
   task via its alias (`...\WindowsApps\ArcInputFixLifted.exe`). `-Uninstall` / `-DevCert`.
+  **Round 16: this scheduled-task launch is proven NOT to re-arm the bug on 268V — kept
+  only as a documented dead-end; use `Install-ArcInputFixLifted-Shell.ps1` instead.**
+- `deploy/Install-ArcInputFixLifted-Shell.ps1` — installs the Lifted helper so the
+  **interactive shell launches it at logon** (Startup-folder shortcut by default, or a
+  `Run`-key value; `-Scope AllUsers` uses HKLM `Run` + a provisioned package). This is
+  the Round-16 fix for the launch-context finding — use this instead of the scheduled
+  task, which is proven not to re-arm the bug. `-Uninstall` / `-DevCert`.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 
@@ -120,36 +127,48 @@ as a documented dead-end and a base for further module-diff investigation.
 
 ## Open next step
 
-The owned MSIX helper has been **tested on 268V hardware and did NOT fix the bug**
-(see above) — so package identity + the in-box composition/input warm-up is *not* the
-whole trigger. Do **not** re-attempt the same warm-up expecting a different result.
+**BREAKTHROUGH (Round 16) — the launch context is the trigger.** On 268V hardware,
+`ArcInputFixLifted.exe` (the lifted-stack helper) launched by the At-logon **scheduled
+task** (auto *and* `Start-ScheduledTask`) does **NOT** fix the bug, but **double-clicking
+the same alias in File Explorer DOES.** So the helper binary + its lifted `Microsoft.UI.*`
+stack are correct; the missing ingredient is that the fix must be **launched by the
+interactive shell (`explorer.exe`) in the user's interactive logon session**, not spawned
+by the Task Scheduler service host. This resolves the earlier paradox (broker activation
+fixed it from `powershell.exe` but not from a service-spawned Win32 exe): the
+differentiator was always interactive-shell launch context.
 
-Current ship stays the proven Paint-alias `ArcInputFix.exe` (64-bit) / `start_mspaint.ps1`.
+**Do NOT** go back to launching the helper from a plain scheduled-task action — that
+context is proven insufficient on this hardware. (`ArcInputFixWarmup`'s in-box warm-up is
+still a dead-end too; the lifted stack in `ArcInputFixLifted` is the correct binary.)
+
+Reproduce the working (double-click) context automatically at logon via mechanisms that
+`explorer.exe` itself launches:
+1. **DONE (built, awaiting 268V relogon test):** `deploy/Install-ArcInputFixLifted-Shell.ps1`
+   installs a **Startup-folder shortcut** (default, current user) or a **`Run`-key value**
+   to the alias. For the fleet, `-Scope AllUsers` writes `HKLM\...\Run` as `REG_EXPAND_SZ`
+   `%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe` (resolves per-user) and
+   provisions the MSIX for all users. Test: run it with `-DevCert`, **log off/on**, and
+   confirm Clarion is already fixed before touching anything (no flash, persists).
+2. **If the logon test passes:** sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`),
+   roll out via `-Scope AllUsers`, and ship it as the Paint-independent deliverable; keep
+   `ArcInputFix.exe` (Paint-alias) as the fallback.
+3. **If it still fails at logon but the manual double-click works:** the trigger is
+   narrower than "explorer-launched" — diff the working double-click vs the Startup/Run
+   launch with Procmon (parent process / token / window-station / activation context).
+
+Fallbacks if Startup/Run is blocked: a scheduled task that **delegates** the launch to
+the running `explorer.exe` (`explorer.exe <path>` relaunch / `IShellDispatch` from the
+running shell), or a GPO user logon script in the interactive context.
+
+Current ship stays the proven Paint-alias `ArcInputFix.exe` (64-bit) / `start_mspaint.ps1`
+until the shell-launch test passes.
 
 **Diagnostic data already captured** (`tools/Capture-Modules.ps1` was run on the Dell):
 the outputs live in `tools/fixdiff-out/` — `mspaint-modules.csv` (Paint's loaded DLLs),
 `mspaint-children.csv` (empty: Paint is in-process), and `services|processes|drivers-{before,during,after}.csv`.
-
-The module capture surfaces a concrete differentiator: real Paint loads the **lifted
-Windows App SDK 1.8 `Microsoft.UI.*` input/composition stack** —
-`Microsoft.UI.Input.dll`, `Microsoft.InputStateManager.dll`, `Microsoft.UI.Windowing.dll`,
+The module capture's differentiator (real Paint loads the **lifted Windows App SDK 1.8
+`Microsoft.UI.*` input/composition stack** — `Microsoft.UI.Input.dll`,
+`Microsoft.InputStateManager.dll`, `Microsoft.UI.Windowing.dll`,
 `Microsoft.UI.Composition.OSSupport.dll`, `Microsoft.Internal.FrameworkUdk.dll`, plus
-`CoreMessagingXP.dll` / `dcompi.dll` / `dwmcorei.dll` / `wuceffectsi.dll` (all from
-`Microsoft.WindowsAppRuntime.1.8`). Our helper used only the **in-box**
-`Windows.UI.Composition.Compositor` and therefore **never loaded the lifted
-`Microsoft.UI.Input` / `InputStateManager` stack** — the most likely missing ingredient.
-
-Next move (single new hypothesis, not another blind warm-up):
-1. **DONE (built, awaiting 268V test):** `src/ArcInputFixLifted/` — a real WinUI 3 app
-   (C#, Windows App SDK 1.8) that loads the lifted `Microsoft.UI.*` input/composition
-   stack the same way Paint does, arms `InputNonClientPointerSource` (the lifted
-   non-client pointer owner), runs headless under package identity, and exits. Builds
-   clean; the self-contained publish carries the exact lifted DLLs from the capture.
-   Test it per `docs/test-warmup-helper.md` (Install-ArcInputFixLifted.ps1 →
-   Start-ScheduledTask). This contradicts the earlier "no NuGet / in-box only" choice —
-   that choice is exactly why `ArcInputFixWarmup` missed this stack.
-2. **If the 268V test passes:** sign with a real cert (`SIGN_PFX`) and ship
-   `ArcInputFixLifted` as the Paint-independent deliverable; keep `ArcInputFix.exe` as
-   fallback. **If it fails:** even the full lifted stack under identity is insufficient —
-   move to a Procmon handle/registry/ALPC diff of a Paint-alias run vs the helper. Keep
-   shipping `ArcInputFix.exe` meanwhile.
+`CoreMessagingXP.dll` / `dcompi.dll` / `dwmcorei.dll` / `wuceffectsi.dll`) is already
+baked into `ArcInputFixLifted` — keep it as the binary; only the launch context changes.

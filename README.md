@@ -582,3 +582,41 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   - If NO -> even the full lifted stack under identity is insufficient; go to a Procmon
     handle/registry/ALPC diff of a Paint-alias run vs the helper. Keep ArcInputFix.exe
     shipped meanwhile.
+
+## Round 16 - BREAKTHROUGH: the LAUNCH CONTEXT is the missing ingredient
+- DELL 268V TEST of ArcInputFixLifted (binary unchanged from Round 15):
+  - Launched by the At-logon SCHEDULED TASK (automatically on logon AND manually via
+    Start-ScheduledTask): DOES NOT FIX. Caption drag / border resize / min-max-close
+    stay broken.
+  - DOUBLE-CLICKING the SAME alias in File Explorer
+    (%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe): FIXES IT. All three
+    work and persist for the whole session.
+- CONCLUSION: the helper and its lifted Microsoft.UI.* stack are CORRECT. The missing
+  ingredient was never the binary - it is the LAUNCH CONTEXT. The fix requires the
+  helper to be launched BY THE INTERACTIVE SHELL (explorer.exe) inside the user's
+  interactive logon session, NOT spawned by the Task Scheduler SERVICE host. This
+  finally explains the long-standing paradox: broker activation fixed the bug from
+  powershell.exe (interactive session) but not from a plain service-spawned Win32 exe.
+  The differentiator was always shell/interactive-session launch context.
+- IMPLICATION: ArcInputFixLifted is very likely a SHIPPABLE, Paint-independent fix - it
+  just has to be launched the way a double-click launches it: by explorer, at logon.
+- NEW PLAN - reproduce the explorer/double-click context automatically at logon
+  (ranked, both explorer-launched):
+  1. Startup-folder shortcut / Run-key value (deploy/Install-ArcInputFixLifted-Shell.ps1).
+     explorer.exe launches these at every logon - same path as a double-click.
+     - Dell retest (single user): CurrentUser Startup .lnk to the alias (default).
+     - Fleet: HKLM\...\Run REG_EXPAND_SZ %LOCALAPPDATA%\...\ArcInputFixLifted.exe so the
+       path resolves per-user at logon + provision the MSIX for all users so each user's
+       alias exists.
+  2. (fallback) a scheduled task that DELEGATES the launch to the running explorer
+     (explorer.exe <path> relaunch / IShellDispatch from the running shell). Keeps the
+     Task trigger but launches via the shell; more fragile - use only if 1 is blocked.
+  3. (fallback) a GPO user logon script that runs in the interactive user context.
+- DIAGNOSTIC quick-checks (do these in the interactive session BEFORE relogon, to confirm
+  the hypothesis without a reboot): run the alias from (a) a normal PowerShell window and
+  (b) the Win+R Run dialog. Both are explorer/interactive launches - expect both to fix
+  it, cementing the launch-context conclusion.
+- NEXT (Dell): Install-ArcInputFixLifted-Shell.ps1 -DevCert ... -> log off and back on ->
+  confirm Clarion is ALREADY fixed before touching anything, no flash, persists to logoff.
+  If yes -> sign with a real cert, switch to AllUsers/HKLM Run + provisioned package, ship
+  as the Paint-independent fix (keep ArcInputFix.exe as the fallback).
