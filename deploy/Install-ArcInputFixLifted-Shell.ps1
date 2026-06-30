@@ -23,8 +23,16 @@
     launch the helper at logon - the same way Startup items and a double-click are
     launched. Two interchangeable, explorer-launched mechanisms:
 
-      -Mechanism Shortcut (default) : a .lnk to the alias in the Startup folder.
-      -Mechanism Run                : a REG_EXPAND_SZ value under ...\CurrentVersion\Run.
+      -Mechanism Run (default)      : a REG_EXPAND_SZ value under ...\CurrentVersion\Run.
+      -Mechanism Shortcut           : a .lnk to the alias in the Startup folder.
+
+    TIMING (268V observation): both run in the explorer context that fixes the bug, but a
+    Startup-FOLDER shortcut fires ~12-15s after logon because Windows THROTTLES Startup
+    items, leaving Clarion broken for that ~15s if opened immediately. A Run KEY fires
+    EARLIER (Run values are processed earlier in shell init and are not subject to the
+    Startup-folder deferral), so -Mechanism Run is now the DEFAULT (and what the fleet
+    should use). Use -Mechanism Shortcut only if a Run key is blocked or you specifically
+    want the Startup-folder path.
 
     And two scopes:
       -Scope CurrentUser (default)  : this user only; uses the per-user alias directly.
@@ -46,8 +54,13 @@
     Optional path to ArcInputFixLifted.cer to trust (dev/test only).
 
 .EXAMPLE
-    # Dell retest (current user, Startup shortcut = closest to the proven double-click):
+    # Dell retest / current user, default Run key (fires early in the explorer context):
     .\deploy\Install-ArcInputFixLifted-Shell.ps1 -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+
+.EXAMPLE
+    # Current user via the Startup-folder shortcut instead (closest to the manual
+    # double-click, but throttled ~12-15s after logon):
+    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 .EXAMPLE
     # Fleet rollout (all users, HKLM Run, package provisioned for all users):
@@ -70,7 +83,7 @@ param(
 
     [Parameter(ParameterSetName = 'Install')]
     [ValidateSet('Shortcut', 'Run')]
-    [string] $Mechanism = 'Shortcut',
+    [string] $Mechanism = 'Run',
 
     [string] $PackageName = 'ArcInputFix.Lifted',
 

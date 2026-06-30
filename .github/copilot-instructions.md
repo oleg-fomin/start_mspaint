@@ -105,10 +105,11 @@ as a documented dead-end and a base for further module-diff investigation.
   **Round 16: this scheduled-task launch is proven NOT to re-arm the bug on 268V — kept
   only as a documented dead-end; use `Install-ArcInputFixLifted-Shell.ps1` instead.**
 - `deploy/Install-ArcInputFixLifted-Shell.ps1` — installs the Lifted helper so the
-  **interactive shell launches it at logon** (Startup-folder shortcut by default, or a
-  `Run`-key value; `-Scope AllUsers` uses HKLM `Run` + a provisioned package). This is
-  the Round-16 fix for the launch-context finding — use this instead of the scheduled
-  task, which is proven not to re-arm the bug. `-Uninstall` / `-DevCert`.
+  **interactive shell launches it at logon** (`Run`-key value by default — fires early in
+  shell init; or `-Mechanism Shortcut` for a Startup-folder shortcut; `-Scope AllUsers`
+  uses HKLM `Run` + a provisioned package). This is the Round-16 fix for the
+  launch-context finding — use this instead of the scheduled task, which is proven not to
+  re-arm the bug. `-Uninstall` / `-DevCert`.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 
@@ -143,16 +144,28 @@ still a dead-end too; the lifted stack in `ArcInputFixLifted` is the correct bin
 
 Reproduce the working (double-click) context automatically at logon via mechanisms that
 `explorer.exe` itself launches:
-1. **DONE (built, awaiting 268V relogon test):** `deploy/Install-ArcInputFixLifted-Shell.ps1`
-   installs a **Startup-folder shortcut** (default, current user) or a **`Run`-key value**
-   to the alias. For the fleet, `-Scope AllUsers` writes `HKLM\...\Run` as `REG_EXPAND_SZ`
+1. **DONE — PASS confirmed on 268V:** `deploy/Install-ArcInputFixLifted-Shell.ps1`
+   installs a **`Run`-key value** (default — processed early in shell init) or a
+   **Startup-folder shortcut** (`-Mechanism Shortcut`) to the alias. The validated test
+   used the CurrentUser **Startup shortcut**, which **DID fix the bug at logon** (explorer
+   launches it = the proven double-click context); the fix persists for the session with
+   no flash — but it fired ~12–15 s in due to the Startup-folder throttle, so the script
+   now defaults to the **earlier-firing `Run` key**. For the fleet, `-Scope AllUsers`
+   writes `HKLM\...\Run` as `REG_EXPAND_SZ`
    `%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe` (resolves per-user) and
-   provisions the MSIX for all users. Test: run it with `-DevCert`, **log off/on**, and
-   confirm Clarion is already fixed before touching anything (no flash, persists).
-2. **If the logon test passes:** sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`),
-   roll out via `-Scope AllUsers`, and ship it as the Paint-independent deliverable; keep
-   `ArcInputFix.exe` (Paint-alias) as the fallback.
-3. **If it still fails at logon but the manual double-click works:** the trigger is
+   provisions the MSIX for all users.
+   - **Timing nuance (expected, not a bug):** the Startup-FOLDER shortcut fired ~12–15 s
+     after logon — Windows' shell startup-app **throttle** defers Startup-folder items.
+     The fix persists once it lands, but Clarion is still broken for that ~15 s if opened
+     immediately. To fire **earlier**, prefer **`-Mechanism Run`** (Run keys are processed
+     earlier in shell init and aren't subject to the Startup-folder deferral, same
+     explorer context). Fallback option 2 (delegate to the running `explorer.exe`) can
+     fire as soon as the shell is up if even earlier is needed.
+2. **Ship path now (test passed):** sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`),
+   roll out via `-Scope AllUsers` (prefer `-Mechanism Run` so the fix lands as early as
+   possible), and ship it as the Paint-independent deliverable; keep `ArcInputFix.exe`
+   (Paint-alias) as the fallback.
+3. **If a logon test ever fails but the manual double-click works:** the trigger is
    narrower than "explorer-launched" — diff the working double-click vs the Startup/Run
    launch with Procmon (parent process / token / window-station / activation context).
 
@@ -161,7 +174,7 @@ the running `explorer.exe` (`explorer.exe <path>` relaunch / `IShellDispatch` fr
 running shell), or a GPO user logon script in the interactive context.
 
 Current ship stays the proven Paint-alias `ArcInputFix.exe` (64-bit) / `start_mspaint.ps1`
-until the shell-launch test passes.
+until `ArcInputFixLifted` is signed with a real cert and rolled out via `-Scope AllUsers`.
 
 **Diagnostic data already captured** (`tools/Capture-Modules.ps1` was run on the Dell):
 the outputs live in `tools/fixdiff-out/` — `mspaint-modules.csv` (Paint's loaded DLLs),

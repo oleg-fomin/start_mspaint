@@ -232,8 +232,12 @@ values** at logon — the exact same launch path as a double-click. So we install 
 those instead of a scheduled task.
 
 ```powershell
-# Dell retest (current user; Startup shortcut = closest to the proven double-click):
+# Current user, default Run key (fires early in shell init, in the explorer context):
 .\deploy\Install-ArcInputFixLifted-Shell.ps1 -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+
+# (alternative) the Startup-folder shortcut - closest to the manual double-click, but
+# throttled ~12-15 s after logon; add -Mechanism Shortcut:
+# .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 # then LOG OFF and back on (do NOT run anything else first), and confirm the Clarion MDI
 # child already has working caption drag / border resize / min-max-close, with no flash.
@@ -264,9 +268,39 @@ will work at logon.
 
 ### Outcome
 
-- **If the logon test fixes it:** sign `ArcInputFixLifted` with a real cert, switch to
-  `-Scope AllUsers` (HKLM `Run` + provisioned package), and ship it as the
-  Paint-independent deliverable. Keep `ArcInputFix.exe` as the fallback.
-- **If it still fails at logon** (but the manual double-click works): the trigger is even
+> **RESULT: PASS (confirmed on 268V).** The CurrentUser Startup-folder shortcut DID fix
+> the bug at logon — `explorer.exe` launches it, the same proven double-click context.
+> Caption drag / border resize / min-max-close all work and persist for the session, with
+> no visible flash. `ArcInputFixLifted` is therefore a **shippable, Paint-independent
+> fix**; the only requirement is the explorer/interactive-shell launch context.
+
+#### Timing nuance (expected — not a bug)
+
+The Startup shortcut fired **~12–15 s after logon**, not instantly. That delay is
+Windows' shell **startup-app throttle**: `explorer.exe` intentionally defers
+**Startup-folder** items several seconds after the desktop appears (the same mechanism
+behind the "these apps are slowing down startup" notice). The fix persists once it lands,
+so applying it ~15 s in is harmless for the rest of the session. The only caveat is a
+~15 s window right after logon in which Clarion is still broken **if opened immediately**.
+
+To make the fix land **earlier** (shrink that window):
+
+- The **`Run`-key** mechanism is now the **default** for exactly this reason — `Run`
+  values are processed earlier in shell init and are **not** subject to the Startup-folder
+  deferral, while still being launched by `explorer.exe` (same context). The plain install
+  above already uses it; pass `-Mechanism Shortcut` only if you specifically want the
+  (throttled) Startup-folder path that matched the original double-click test.
+- If even earlier is required, fallback option 2 (a task that **delegates** the launch to
+  the running `explorer.exe`) can fire as soon as the shell is up — weigh that against its
+  extra fragility.
+
+#### Ship path now
+
+Sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`), roll out via `-Scope AllUsers`
+(HKLM `Run` `REG_EXPAND_SZ` + provisioned MSIX), and prefer `-Mechanism Run` for the fleet
+so the fix lands as early as possible. Keep `ArcInputFix.exe` (Paint-alias) as the
+fallback.
+
+- **If a logon test ever fails** (but the manual double-click works): the trigger is even
   narrower than "explorer-launched" — instrument the working double-click vs the
   Startup/Run launch with Procmon and diff parent process / token / window-station.

@@ -604,7 +604,8 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   (ranked, both explorer-launched):
   1. Startup-folder shortcut / Run-key value (deploy/Install-ArcInputFixLifted-Shell.ps1).
      explorer.exe launches these at every logon - same path as a double-click.
-     - Dell retest (single user): CurrentUser Startup .lnk to the alias (default).
+     - Dell retest (single user): CurrentUser Startup .lnk to the alias (the script
+       default at the time).
      - Fleet: HKLM\...\Run REG_EXPAND_SZ %LOCALAPPDATA%\...\ArcInputFixLifted.exe so the
        path resolves per-user at logon + provision the MSIX for all users so each user's
        alias exists.
@@ -620,3 +621,30 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   confirm Clarion is ALREADY fixed before touching anything, no flash, persists to logoff.
   If yes -> sign with a real cert, switch to AllUsers/HKLM Run + provisioned package, ship
   as the Paint-independent fix (keep ArcInputFix.exe as the fallback).
+- DELL RESULT: PASS (confirmed). The CurrentUser Startup-folder shortcut
+  (Install-ArcInputFixLifted-Shell.ps1's then-default mechanism) DOES fix the bug at logon
+  - explorer.exe launches it, exactly the proven double-click context. Caption drag /
+  border resize / min-max-close all work and persist for the session, no visible flash.
+  This confirms ArcInputFixLifted is a SHIPPABLE, Paint-independent fix; the only
+  requirement is the explorer/interactive-shell launch context, which the Startup shortcut
+  provides.
+- TIMING NUANCE (expected, NOT a bug): the Startup shortcut fired ~12-15s AFTER logon.
+  That delay is Windows' shell startup-app THROTTLE - explorer.exe intentionally defers
+  Startup-FOLDER items several seconds after the desktop appears (the same mechanism
+  behind "apps slowing down startup"). The fix persists once it lands, so applying it
+  ~15s in is harmless for the rest of the session. Caveat: there is a ~15s window right
+  after logon where Clarion is still broken if opened immediately.
+  - To FIRE EARLIER and shrink that window: use the Run-KEY mechanism instead of the
+    Startup folder (-Mechanism Run) - Run keys are processed earlier in shell init and
+    are NOT subject to the Startup-folder deferral. Same explorer launch context.
+  - If even earlier is needed, fallback option 2 (a task that DELEGATES to the running
+    explorer) can fire as soon as the shell is up; weigh against its fragility.
+- SHIP PATH NOW: sign ArcInputFixLifted with a real cert (SIGN_PFX), roll out via
+  -Scope AllUsers (HKLM Run REG_EXPAND_SZ + provisioned MSIX). Prefer -Mechanism Run for
+  the fleet so the fix lands as early as possible. Keep ArcInputFix.exe (Paint-alias) as
+  the fallback.
+- SCRIPT CHANGE: acting on the timing nuance, -Mechanism Run is now the DEFAULT in
+  Install-ArcInputFixLifted-Shell.ps1 (fires earlier in shell init, same explorer launch
+  context; -Mechanism Shortcut is still available for the Startup-folder path). So the
+  plain `... -DevCert ...` install now writes the HKCU Run key for the current user, and
+  -Scope AllUsers writes the HKLM Run key for the fleet.
