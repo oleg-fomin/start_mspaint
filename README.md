@@ -549,3 +549,36 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   SDK Microsoft.UI.Windowing.AppWindow + Microsoft.UI.Input.InputPointerSource), which
   reverses the original "in-box only / no NuGet" choice that caused the miss. Keep
   ArcInputFix.exe shipped meanwhile.
+
+## Round 15 - Lifted-stack helper BUILT (src/ArcInputFixLifted; awaiting Dell test)
+- BUILT the Round 14 "new hypothesis": src/ArcInputFixLifted/ - a real WinUI 3 app
+  (C#, .NET 8, Windows App SDK 1.8). Being an actual WinUI 3 app it loads the SAME
+  lifted Microsoft.UI.* stack packaged Paint does, instead of the in-box Compositor
+  ArcInputFixWarmup used. Headless: OnLaunched creates a WinUI3 Window, moves it
+  off-screen + hides it via the lifted AppWindow (Microsoft.UI.Windowing), explicitly
+  arms InputNonClientPointerSource.GetForWindowId (the lifted NON-CLIENT pointer input
+  owner = exactly the subsystem the bug kills), dwells ~3s, Application.Exit. Logs one
+  line to the Application event log (source ArcInputFixLifted).
+- PACKAGING: built UNPACKAGED + self-contained (WindowsAppSDKSelfContained=true,
+  WindowsPackageType=None) so `dotnet publish -r win-x64` drops the whole lifted runtime
+  next to the exe (no fleet WindowsAppRuntime dependency). build.cmd then overlays
+  AppxManifest.xml (Identity ArcInputFix.Lifted, runFullTrust, App Execution Alias
+  ArcInputFixLifted.exe) + placeholder assets into the publish folder, makeappx pack ->
+  ArcInputFixLifted.msix (~86MB, self-contained), signtool sign (self-signed dev cert by
+  default; SIGN_PFX for release). Deploy via deploy/Install-ArcInputFixLifted.ps1
+  (Add-AppxPackage + hidden At-logon task launching the alias; -DevCert, -Uninstall).
+- DEV VERIFY: dotnet build + publish 0 errors; publish folder CONFIRMED to contain
+  Microsoft.UI.Input.dll, Microsoft.InputStateManager.dll, Microsoft.UI.Windowing.dll,
+  Microsoft.UI.Composition.OSSupport.dll, Microsoft.Internal.FrameworkUdk.dll,
+  CoreMessagingXP/dcompi/dwmcorei/wuceffectsi (the exact lifted DLLs from the capture).
+  makeappx pack + dev-sign OK; headless exe runs and self-exits code 0 in ~5s, no
+  visible window. Ready for Dell test.
+- NEXT (Dell, fresh broken logon): Install-ArcInputFixLifted.ps1 -DevCert ... then
+  Start-ScheduledTask ArcInputFixLifted (or run the alias) -> does caption-drag /
+  border-resize / min-max-close work, no flash, persist to logoff?
+  - If YES -> the lifted Microsoft.UI.Input stack was the missing ingredient; sign with
+    a real cert (SIGN_PFX) and ship ArcInputFixLifted as the Paint-independent
+    deliverable, keep ArcInputFix.exe as fallback.
+  - If NO -> even the full lifted stack under identity is insufficient; go to a Procmon
+    handle/registry/ALPC diff of a Paint-alias run vs the helper. Keep ArcInputFix.exe
+    shipped meanwhile.

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ArcInputFixLifted - owned WinUI 3 helper that initialises the LIFTED
+    Microsoft.UI.* input/composition stack (Windows App SDK), the differentiator the
+    Dell module capture (tools/fixdiff-out/mspaint-modules.csv) showed real packaged
+    Paint loads and our in-box C++ helper (src/ArcInputFixWarmup) did NOT.
+
+    Built unpackaged + self-contained so `dotnet publish -r win-x64` drops the whole
+    lifted Microsoft.UI.* runtime next to the exe; build.cmd then hand-packs that into
+    a signed MSIX (makeappx + signtool) to grant package identity - the same proven
+    packaging pipeline ArcInputFixWarmup uses. Self-contained means the package needs
+    no externally-installed WindowsAppRuntime framework on the fleet.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>ArcInputFixLifted</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platform>x64</Platform>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <!-- Unpackaged build; we wrap the published output in our own MSIX by hand. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Carry the lifted Microsoft.UI.* runtime in the output (no framework dep). -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260529003" />
+    <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

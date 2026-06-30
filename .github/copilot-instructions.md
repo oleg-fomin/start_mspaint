@@ -92,6 +92,16 @@ as a documented dead-end and a base for further module-diff investigation.
   hidden At-logon task that launches it via its App Execution Alias
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixWarmup.exe`). `-Uninstall` removes
   both; `-DevCert` trusts the self-signed test cert.
+- `src/ArcInputFixLifted/` — the **lifted-stack** helper (WinUI 3, C#, Windows App SDK
+  1.8): the next hypothesis after `ArcInputFixWarmup` failed. Being a real WinUI 3 app it
+  loads the lifted `Microsoft.UI.*` input/composition stack packaged Paint uses (the
+  differentiator from `tools/fixdiff-out/mspaint-modules.csv`). Headless: off-screen
+  hidden `AppWindow`, arms `InputNonClientPointerSource`, dwells ~3 s, exits.
+  `build.cmd` = `dotnet publish -r win-x64` self-contained → `makeappx` pack →
+  `signtool` sign; `AppxManifest.xml`, `New-Assets.ps1`, `New-DevCert.ps1`.
+  **Builds clean; awaiting 268V hardware test.**
+- `deploy/Install-ArcInputFixLifted.ps1` — registers the Lifted MSIX + hidden At-logon
+  task via its alias (`...\WindowsApps\ArcInputFixLifted.exe`). `-Uninstall` / `-DevCert`.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 
@@ -130,10 +140,16 @@ Windows App SDK 1.8 `Microsoft.UI.*` input/composition stack** —
 `Microsoft.UI.Input` / `InputStateManager` stack** — the most likely missing ingredient.
 
 Next move (single new hypothesis, not another blind warm-up):
-1. Build a helper that initialises the **lifted Microsoft.UI input stack** (Windows App
-   SDK `Microsoft.UI.Input` / `InputStateManager`, e.g. an `InputPointerSource` /
-   `Microsoft.UI.Windowing.AppWindow`), still under package identity, and test only that.
-   This contradicts the earlier "no NuGet / in-box only" choice — that choice is exactly
-   why the helper missed this stack.
-2. If a concrete differentiator is confirmed, revisit the helper; keep
-   `ArcInputFix.exe` as the shipped fix meanwhile.
+1. **DONE (built, awaiting 268V test):** `src/ArcInputFixLifted/` — a real WinUI 3 app
+   (C#, Windows App SDK 1.8) that loads the lifted `Microsoft.UI.*` input/composition
+   stack the same way Paint does, arms `InputNonClientPointerSource` (the lifted
+   non-client pointer owner), runs headless under package identity, and exits. Builds
+   clean; the self-contained publish carries the exact lifted DLLs from the capture.
+   Test it per `docs/test-warmup-helper.md` (Install-ArcInputFixLifted.ps1 →
+   Start-ScheduledTask). This contradicts the earlier "no NuGet / in-box only" choice —
+   that choice is exactly why `ArcInputFixWarmup` missed this stack.
+2. **If the 268V test passes:** sign with a real cert (`SIGN_PFX`) and ship
+   `ArcInputFixLifted` as the Paint-independent deliverable; keep `ArcInputFix.exe` as
+   fallback. **If it fails:** even the full lifted stack under identity is insufficient —
+   move to a Procmon handle/registry/ALPC diff of a Paint-alias run vs the helper. Keep
+   shipping `ArcInputFix.exe` meanwhile.

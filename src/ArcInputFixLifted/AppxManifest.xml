@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ArcInputFixLifted MSIX package manifest.
+
+  Wraps the self-contained WinUI 3 ArcInputFixLifted.exe so it runs with PACKAGE
+  IDENTITY. The hypothesis under test: package identity + the LIFTED Microsoft.UI.*
+  input/composition stack (which this app loads, unlike src/ArcInputFixWarmup which
+  used only the in-box Windows.UI.Composition.Compositor) re-arms the Intel Arc
+  268V non-client-mouse path. The lifted-stack differentiator comes from the Dell
+  module capture tools/fixdiff-out/mspaint-modules.csv.
+
+  Signing (required before the package will register):
+    * Publisher below MUST match the Subject of the signing certificate exactly,
+      e.g. CN=Contoso Ltd, O=Contoso Ltd, C=US. Update it to your cert subject.
+    * Build/pack/sign is automated by build.cmd (makeappx + signtool).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="ArcInputFix.Lifted"
+    Publisher="CN=ArcInputFix Dev"
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Arc Input Fix (Lifted)</DisplayName>
+    <PublisherDisplayName>ArcInputFix</PublisherDisplayName>
+    <Description>Re-arms the Intel Arc (Core Ultra 268V) non-client mouse input path at logon by briefly initialising the lifted Microsoft.UI.* WinUI 3 input/composition stack with package identity.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.22000.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="ArcInputFixLifted"
+      Executable="ArcInputFixLifted.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Arc Input Fix (Lifted)"
+        Description="Re-arms the non-client mouse input path at logon."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        AppListEntry="none">
+        <uap:DefaultTile Square71x71Logo="Assets\SmallTile.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- App Execution Alias: launch the helper the same proven way as the Paint
+             alias (CreateProcess on a PATH reparse point that runs the packaged app
+             with identity in the interactive session). -->
+        <uap3:Extension Category="windows.appExecutionAlias">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="ArcInputFixLifted.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
