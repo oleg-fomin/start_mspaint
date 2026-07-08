@@ -232,21 +232,24 @@ values** at logon — the exact same launch path as a double-click. So we install 
 those instead of a scheduled task.
 
 ```powershell
-# Current user, default Run key (fires early in shell init, in the explorer context):
-.\deploy\Install-ArcInputFixLifted-Shell.ps1 -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+# Single-box dev/test, current user, default Run key (fires early in the explorer context):
+.\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 # (alternative) the Startup-folder shortcut - closest to the manual double-click, but
 # throttled ~12-15 s after logon; add -Mechanism Shortcut:
-# .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+# .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 # then LOG OFF and back on (do NOT run anything else first), and confirm the Clarion MDI
 # child already has working caption drag / border resize / min-max-close, with no flash.
 ```
 
-Fleet rollout (every user, per-user alias resolution, package provisioned for all users):
+Fleet rollout (the script's **defaults**: `-Scope AllUsers` + `-Mechanism Run`). Ship this
+script next to the **CA-signed** `ArcInputFixLifted.msix` (the script resolves the package
+from its own folder first), then run it **elevated with no parameters** - it registers +
+provisions the package for all users and writes the HKLM `Run` value:
 
 ```powershell
-.\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope AllUsers
+.\deploy\Install-ArcInputFixLifted-Shell.ps1
 ```
 
 Uninstall (removes the shortcut / Run value and the package):
@@ -296,9 +299,11 @@ To make the fix land **earlier** (shrink that window):
 
 #### Ship path now
 
-Sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`), roll out via `-Scope AllUsers`
-(HKLM `Run` `REG_EXPAND_SZ` + provisioned MSIX), and prefer `-Mechanism Run` for the fleet
-so the fix lands as early as possible. Keep `ArcInputFix.exe` (Paint-alias) as the
+Sign `ArcInputFixLifted` with a real (CA-trusted) cert (`SIGN_PFX`), then ship
+`Install-ArcInputFixLifted-Shell.ps1` **next to the signed `ArcInputFixLifted.msix`**. The
+script resolves the package from its own folder first and defaults to `-Scope AllUsers`
++ `-Mechanism Run`, so a **zero-parameter elevated run** installs the fix fleet-wide (HKLM
+`Run` `REG_EXPAND_SZ` + provisioned MSIX). Keep `ArcInputFix.exe` (Paint-alias) as the
 fallback.
 
 - **If a logon test ever fails** (but the manual double-click works): the trigger is even

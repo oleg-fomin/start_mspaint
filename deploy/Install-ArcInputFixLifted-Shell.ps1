@@ -35,12 +35,16 @@
     want the Startup-folder path.
 
     And two scopes:
-      -Scope CurrentUser (default)  : this user only; uses the per-user alias directly.
-                                      Best for the Dell retest.
-      -Scope AllUsers               : every user. Forces HKLM\...\Run with a REG_EXPAND_SZ
+      -Scope AllUsers (default)     : every user. Forces HKLM\...\Run with a REG_EXPAND_SZ
                                       value so %LOCALAPPDATA% resolves to EACH user's own
                                       alias at logon, and provisions the package for all
-                                      users so that alias exists. (Fleet rollout.)
+                                      users so that alias exists. This is the fleet-rollout
+                                      default: with a CA-trusted .msix sitting next to this
+                                      script, a plain elevated
+                                      `.\Install-ArcInputFixLifted-Shell.ps1` (no
+                                      parameters) installs the fix fleet-wide.
+      -Scope CurrentUser            : this user only; uses the per-user alias directly.
+                                      Handy for a single-box dev/test.
 
     Use -Uninstall to remove whatever this script created (both scopes / mechanisms).
 
@@ -48,23 +52,28 @@
     Install-ArcInputFixLifted.ps1 (the task version) only as a documented dead-end.
 
 .PARAMETER Package
-    Path to ArcInputFixLifted.msix. Default: ..\src\ArcInputFixLifted\ArcInputFixLifted.msix
+    Path to the ArcInputFixLifted MSIX. If omitted, the script looks for
+    ArcInputFixLifted.msix IN THE SCRIPT'S OWN FOLDER first (so a signed package can ship
+    right next to this script for fleet deployment), then falls back to the dev build
+    output ..\src\ArcInputFixLifted\ArcInputFixLifted.msix.
 
 .PARAMETER DevCert
     Optional path to ArcInputFixLifted.cer to trust (dev/test only).
 
 .EXAMPLE
-    # Dell retest / current user, default Run key (fires early in the explorer context):
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+    # Fleet rollout (DEFAULT): a CA-signed ArcInputFixLifted.msix sits beside this script;
+    # no parameters needed. Installs for all users (HKLM Run + provisioned package). Run
+    # from an elevated PowerShell.
+    .\Install-ArcInputFixLifted-Shell.ps1
+
+.EXAMPLE
+    # Single-box dev/test for the current user only, trusting the self-signed dev cert:
+    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 .EXAMPLE
     # Current user via the Startup-folder shortcut instead (closest to the manual
     # double-click, but throttled ~12-15s after logon):
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
-
-.EXAMPLE
-    # Fleet rollout (all users, HKLM Run, package provisioned for all users):
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope AllUsers
+    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 .EXAMPLE
     .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Uninstall
@@ -79,7 +88,7 @@ param(
 
     [Parameter(ParameterSetName = 'Install')]
     [ValidateSet('CurrentUser', 'AllUsers')]
-    [string] $Scope = 'CurrentUser',
+    [string] $Scope = 'AllUsers',
 
     [Parameter(ParameterSetName = 'Install')]
     [ValidateSet('Shortcut', 'Run')]
@@ -177,10 +186,16 @@ if ($Uninstall) {
 # Resolve / validate the package path.
 # ---------------------------------------------------------------------------
 if (-not $Package) {
-    $Package = Join-Path $PSScriptRoot '..\src\ArcInputFixLifted\ArcInputFixLifted.msix'
+    $Package = Join-Path $PSScriptRoot 'ArcInputFixLifted.msix'
 }
 if (-not (Test-Path -LiteralPath $Package)) {
-    throw "ArcInputFixLifted.msix not found at '$Package'. Build it first (src\ArcInputFixLifted\build.cmd)."
+    Write-Host "ArcInputFixLifted.msix not found at '$PSScriptRoot'" -ForegroundColor DarkYellow
+    $Package = Join-Path $PSScriptRoot '..\src\ArcInputFixLifted\ArcInputFixLifted.msix'
+    Write-Host "Trying find package at '$Package'." -ForegroundColor DarkYellow
+
+    if (-not (Test-Path -LiteralPath $Package)) {
+        throw "ArcInputFixLifted.msix not found at '$Package'. Build it first (src\ArcInputFixLifted\build.cmd)."
+    }
 }
 
 # All-users work (cert trust, HKLM, provisioning) requires elevation.

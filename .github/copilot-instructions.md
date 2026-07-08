@@ -106,10 +106,13 @@ as a documented dead-end and a base for further module-diff investigation.
   only as a documented dead-end; use `Install-ArcInputFixLifted-Shell.ps1` instead.**
 - `deploy/Install-ArcInputFixLifted-Shell.ps1` — installs the Lifted helper so the
   **interactive shell launches it at logon** (`Run`-key value by default — fires early in
-  shell init; or `-Mechanism Shortcut` for a Startup-folder shortcut; `-Scope AllUsers`
-  uses HKLM `Run` + a provisioned package). This is the Round-16 fix for the
-  launch-context finding — use this instead of the scheduled task, which is proven not to
-  re-arm the bug. `-Uninstall` / `-DevCert`.
+  shell init; or `-Mechanism Shortcut` for a Startup-folder shortcut). Defaults are
+  **fleet-ready**: `-Scope AllUsers` (HKLM `Run` + provisioned package) and MSIX resolved
+  from the **script's own folder first** (then the dev build path), so shipping the script
+  beside a CA-signed `.msix` lets a **zero-parameter elevated run** install fleet-wide. Use
+  `-Scope CurrentUser -DevCert ...` for single-box dev/test. This is the Round-16 fix for
+  the launch-context finding — use this instead of the scheduled task, which is proven not
+  to re-arm the bug. `-Uninstall` / `-DevCert`.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 
@@ -161,10 +164,13 @@ Reproduce the working (double-click) context automatically at logon via mechanis
      earlier in shell init and aren't subject to the Startup-folder deferral, same
      explorer context). Fallback option 2 (delegate to the running `explorer.exe`) can
      fire as soon as the shell is up if even earlier is needed.
-2. **Ship path now (test passed):** sign `ArcInputFixLifted` with a real cert (`SIGN_PFX`),
-   roll out via `-Scope AllUsers` (prefer `-Mechanism Run` so the fix lands as early as
-   possible), and ship it as the Paint-independent deliverable; keep `ArcInputFix.exe`
-   (Paint-alias) as the fallback.
+2. **Ship path now (test passed):** sign `ArcInputFixLifted` with a real CA cert
+   (`SIGN_PFX`) and ship `Install-ArcInputFixLifted-Shell.ps1` **next to the signed
+   `.msix`**. The script resolves the package from its own folder first and now **defaults
+   to `-Scope AllUsers` + `-Mechanism Run`**, so a **zero-parameter elevated run** rolls
+   the fix out fleet-wide; ship it as the Paint-independent deliverable and keep
+   `ArcInputFix.exe` (Paint-alias) as the fallback. (`-Scope CurrentUser -DevCert ...` is
+   the single-box dev/test path.)
 3. **If a logon test ever fails but the manual double-click works:** the trigger is
    narrower than "explorer-launched" — diff the working double-click vs the Startup/Run
    launch with Procmon (parent process / token / window-station / activation context).

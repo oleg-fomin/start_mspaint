@@ -648,3 +648,10 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   context; -Mechanism Shortcut is still available for the Startup-folder path). So the
   plain `... -DevCert ...` install now writes the HKCU Run key for the current user, and
   -Scope AllUsers writes the HKLM Run key for the fleet.
+- SCRIPT CHANGE (fleet-ready defaults): Install-ArcInputFixLifted-Shell.ps1 now (a)
+  resolves the MSIX from its OWN FOLDER first (ArcInputFixLifted.msix beside the script),
+  falling back to ..\src\ArcInputFixLifted\ArcInputFixLifted.msix for dev builds, and (b)
+  defaults -Scope to AllUsers (was CurrentUser). Net effect: for the fleet you ship this
+  script next to the CA-signed .msix and run it elevated with NO PARAMETERS - it registers
+  + provisions the package for all users and writes the HKLM Run key. Use
+  `-Scope CurrentUser -DevCert ...` for single-box dev/test.
