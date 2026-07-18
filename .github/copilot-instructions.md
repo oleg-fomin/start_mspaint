@@ -109,10 +109,16 @@ as a documented dead-end and a base for further module-diff investigation.
   shell init; or `-Mechanism Shortcut` for a Startup-folder shortcut). Defaults are
   **fleet-ready**: `-Scope AllUsers` (HKLM `Run` + provisioned package) and MSIX resolved
   from the **script's own folder first** (then the dev build path), so shipping the script
-  beside a CA-signed `.msix` lets a **zero-parameter elevated run** install fleet-wide. Use
+  beside a CA-signed `.msix` lets a **zero-parameter elevated run** install fleet-wide. To
+  close the pre-existing-user gap (provisioning only auto-registers **future** profiles, so
+  older accounts have no `%LOCALAPPDATA%` alias), the installer **copies the resolved alias
+  into its own folder** (`$PSScriptRoot\ArcInputFixLifted.exe`) after `Add-AppxPackage` and
+  points the `Run` value at that **fixed copy** — one absolute path shared by every user
+  (the copy is guarded against reparse-point 0-byte stubs). **The script's folder must
+  therefore be a PERSISTENT location** (e.g. `%ProgramFiles%`), not temp/removable. Use
   `-Scope CurrentUser -DevCert ...` for single-box dev/test. This is the Round-16 fix for
   the launch-context finding — use this instead of the scheduled task, which is proven not
-  to re-arm the bug. `-Uninstall` / `-DevCert`.
+  to re-arm the bug. `-Uninstall` removes the `Run` value and the alias copy. `-DevCert`.
 - `tools/Invoke-FixDiff.ps1`, `tools/Capture-Modules.ps1` — Phase-1 diagnostics
   (service/process/DLL diffs; Procmon is opt-in via `-WithProcmon`). No longer central.
 

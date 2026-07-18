@@ -35,16 +35,22 @@
     want the Startup-folder path.
 
     And two scopes:
-      -Scope AllUsers (default)     : every user. Forces HKLM\...\Run with a REG_EXPAND_SZ
-                                      value so %LOCALAPPDATA% resolves to EACH user's own
-                                      alias at logon, and provisions the package for all
-                                      users so that alias exists. This is the fleet-rollout
-                                      default: with a CA-trusted .msix sitting next to this
-                                      script, a plain elevated
-                                      `.\Install-ArcInputFixLifted-Shell.ps1` (no
+      -Scope AllUsers (default)     : every user. Provisions the package for all users AND
+                                      copies the alias into THIS SCRIPT'S FOLDER, then points
+                                      HKLM\...\Run at that fixed copy - one absolute path
+                                      that resolves for EVERY user, including pre-existing
+                                      accounts that never registered the package themselves
+                                      (provisioning only covers FUTURE profiles). This is the
+                                      fleet-rollout default: with a CA-trusted .msix sitting
+                                      next to this script (in a PERSISTENT folder), a plain
+                                      elevated `.\Install-ArcInputFixLifted-Shell.ps1` (no
                                       parameters) installs the fix fleet-wide.
-      -Scope CurrentUser            : this user only; uses the per-user alias directly.
+      -Scope CurrentUser            : this user only; also targets the fixed alias copy.
                                       Handy for a single-box dev/test.
+
+    NOTE: because the Run value points at the alias copy in this script's folder, that
+    folder must be a PERSISTENT location for the fleet (e.g. under %ProgramFiles% or a
+    managed share synced locally) - do not run the installer from a temp/removable path.
 
     Use -Uninstall to remove whatever this script created (both scopes / mechanisms).
 
@@ -111,6 +117,13 @@ $ErrorActionPreference = 'Stop'
 $AliasPathExpandable = "%LOCALAPPDATA%\Microsoft\WindowsApps\$Alias"
 $AliasPathThisUser   = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$Alias"
 
+# Fixed-location COPY of the alias, kept next to this script. Provisioning stages the
+# package machine-wide but the per-user %LOCALAPPDATA% alias only exists AFTER the package
+# is registered for that specific user - so pre-existing users have no alias yet. Copying
+# the alias into this persistent deploy folder gives ONE absolute path that is identical
+# for every user, which the HKLM Run value then targets (no per-user registration needed).
+$AliasCopyPath = Join-Path $PSScriptRoot $Alias
+
 $HkcuRun       = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $HklmRun       = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
 $ShortcutLeaf  = "$EntryName.lnk"
@@ -125,6 +138,91 @@ function Assert-Admin {
     if (-not (Test-Admin)) {
         throw 'This step needs an elevated (Administrator) PowerShell.'
     }
+}
+
+# An App Execution Alias is NOT a normal file - it is a reparse point tagged
+# IO_REPARSE_TAG_APPEXECLINK (0x8000001B). Copy-Item / Explorer open it with
+# follow-reparse semantics and fail ("The file cannot be accessed by the system.").
+# The fix is to copy the RAW reparse buffer the way Far Manager does: read it with
+# FSCTL_GET_REPARSE_POINT and stamp it onto a freshly created placeholder file with
+# FSCTL_SET_REPARSE_POINT. This preserves the alias so it launches from the new path.
+function Copy-ReparsePoint {
+    param(
+        [Parameter(Mandatory)] [string] $Source,
+        [Parameter(Mandatory)] [string] $Destination
+    )
+
+    if (-not ('ArcAlias.Native' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+
+namespace ArcAlias
+{
+    public static class Native
+    {
+        const uint FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
+        const uint FILE_FLAG_BACKUP_SEMANTICS    = 0x02000000;
+        const uint FSCTL_GET_REPARSE_POINT       = 0x000900A8;
+        const uint FSCTL_SET_REPARSE_POINT       = 0x000900A4;
+        const int  MAXIMUM_REPARSE_DATA_BUFFER_SIZE = 16 * 1024;
+        const uint GENERIC_READ  = 0x80000000;
+        const uint GENERIC_WRITE = 0x40000000;
+        const uint FILE_SHARE_READ = 0x1;
+        const uint OPEN_EXISTING = 3;
+        const uint CREATE_ALWAYS = 2;
+        static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern IntPtr CreateFileW(string lpFileName, uint dwDesiredAccess, uint dwShareMode,
+            IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool DeviceIoControl(IntPtr hDevice, uint dwIoControlCode,
+            byte[] lpInBuffer, int nInBufferSize, byte[] lpOutBuffer, int nOutBufferSize,
+            out int lpBytesReturned, IntPtr lpOverlapped);
+
+        public static void Copy(string source, string destination)
+        {
+            // Read the raw reparse buffer from the alias without dereferencing it.
+            byte[] buffer = new byte[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+            int bytesReturned;
+            IntPtr src = CreateFileW(source, GENERIC_READ, FILE_SHARE_READ, IntPtr.Zero, OPEN_EXISTING,
+                FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero);
+            if (src == INVALID_HANDLE_VALUE) throw new Win32Exception(Marshal.GetLastWin32Error(), "open source alias");
+            try
+            {
+                if (!DeviceIoControl(src, FSCTL_GET_REPARSE_POINT, null, 0, buffer, buffer.Length, out bytesReturned, IntPtr.Zero))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "FSCTL_GET_REPARSE_POINT");
+            }
+            finally { CloseHandle(src); }
+
+            // Create an empty placeholder, then stamp the reparse buffer onto it.
+            if (File.Exists(destination)) File.Delete(destination);
+            IntPtr dst = CreateFileW(destination, GENERIC_WRITE, 0, IntPtr.Zero, CREATE_ALWAYS,
+                FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero);
+            if (dst == INVALID_HANDLE_VALUE) throw new Win32Exception(Marshal.GetLastWin32Error(), "create destination file");
+            try
+            {
+                int dummy;
+                if (!DeviceIoControl(dst, FSCTL_SET_REPARSE_POINT, buffer, bytesReturned, null, 0, out dummy, IntPtr.Zero))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "FSCTL_SET_REPARSE_POINT");
+            }
+            finally { CloseHandle(dst); }
+        }
+    }
+}
+'@
+    }
+
+    [ArcAlias.Native]::Copy($Source, $Destination)
 }
 
 function Get-StartupDir {
@@ -151,12 +249,21 @@ function Remove-RunValue {
     }
 }
 
+function Remove-AliasCopy {
+    if (Test-Path -LiteralPath $AliasCopyPath) {
+        Remove-Item -LiteralPath $AliasCopyPath -Force
+        Write-Host "Removed alias copy '$AliasCopyPath'." -ForegroundColor Green
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Uninstall - remove every mechanism/scope this script could have created.
 # ---------------------------------------------------------------------------
 if ($Uninstall) {
     Remove-AliasShortcut -Scope CurrentUser
     Remove-RunValue -RunKey $HkcuRun
+
+    Remove-AliasCopy
 
     if (Test-Admin) {
         Remove-AliasShortcut -Scope AllUsers
@@ -231,6 +338,24 @@ if ($Scope -eq 'AllUsers') {
     Write-Host "Provisioned package for all (future) users." -ForegroundColor Green
 }
 
+# Copy the resolved alias into this script's folder. Provisioning only stages the package
+# machine-wide; the per-user %LOCALAPPDATA% alias does not exist for pre-existing accounts
+# until the package is registered for them. A single fixed copy next to this script gives
+# ONE absolute path that every user's Run value can target, closing that gap. The alias is
+# a reparse point, so it must be copied via Copy-ReparsePoint (raw reparse buffer) - a plain
+# Copy-Item fails on it with "The file cannot be accessed by the system."
+if (-not (Test-Path -LiteralPath $AliasPathThisUser)) {
+    throw "Alias '$AliasPathThisUser' not found after registration - cannot create the fixed copy."
+}
+# The alias is a reparse point (IO_REPARSE_TAG_APPEXECLINK); Copy-Item / Explorer fail on
+# it with "The file cannot be accessed by the system." Copy the raw reparse buffer instead
+# (same approach that lets Far Manager copy it), which preserves a working, launchable alias.
+Copy-ReparsePoint -Source $AliasPathThisUser -Destination $AliasCopyPath
+if (-not (Test-Path -LiteralPath $AliasCopyPath)) {
+    throw "Alias copy '$AliasCopyPath' was not created."
+}
+Write-Host "Copied alias reparse point to fixed path '$AliasCopyPath'." -ForegroundColor Green
+
 # ---------------------------------------------------------------------------
 # Install the explorer-launched startup entry.
 # These are executed by explorer.exe at logon - the SAME launch path as a double-click,
@@ -258,10 +383,11 @@ switch ($Mechanism) {
     }
     'Run' {
         $runKey = if ($Scope -eq 'AllUsers') { $HklmRun } else { $HkcuRun }
-        # REG_EXPAND_SZ so %LOCALAPPDATA% resolves to the launching user's profile at logon.
-        New-ItemProperty -Path $runKey -Name $EntryName -Value $AliasPathExpandable `
-            -PropertyType ExpandString -Force | Out-Null
-        Write-Host "Created Run value '$runKey\$EntryName' = '$AliasPathExpandable'." -ForegroundColor Green
+        # Target the fixed copy next to this script - one absolute path shared by every user,
+        # so the alias resolves even for accounts that never registered the package.
+        New-ItemProperty -Path $runKey -Name $EntryName -Value $AliasCopyPath `
+            -PropertyType String -Force | Out-Null
+        Write-Host "Created Run value '$runKey\$EntryName' = '$AliasCopyPath'." -ForegroundColor Green
     }
 }
 
