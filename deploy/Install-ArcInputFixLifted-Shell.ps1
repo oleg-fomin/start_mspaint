@@ -70,19 +70,19 @@
     # Fleet rollout (DEFAULT): a CA-signed ArcInputFixLifted.msix sits beside this script;
     # no parameters needed. Installs for all users (HKLM Run + provisioned package). Run
     # from an elevated PowerShell.
-    .\Install-ArcInputFixLifted-Shell.ps1
+    powershell -ExecutionPolicy Bypass -File .\Install-ArcInputFixLifted-Shell.ps1
 
 .EXAMPLE
     # Single-box dev/test for the current user only, trusting the self-signed dev cert:
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+    powershell -ExecutionPolicy Bypass -File .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 .EXAMPLE
     # Current user via the Startup-folder shortcut instead (closest to the manual
     # double-click, but throttled ~12-15s after logon):
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
+    powershell -ExecutionPolicy Bypass -File .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Scope CurrentUser -Mechanism Shortcut -DevCert .\src\ArcInputFixLifted\ArcInputFixLifted.cer
 
 .EXAMPLE
-    .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Uninstall
+    powershell -ExecutionPolicy Bypass -File .\deploy\Install-ArcInputFixLifted-Shell.ps1 -Uninstall
 #>
 [CmdletBinding(DefaultParameterSetName = 'Install')]
 param(
