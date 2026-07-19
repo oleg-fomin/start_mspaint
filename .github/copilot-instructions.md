@@ -114,8 +114,13 @@ as a documented dead-end and a base for further module-diff investigation.
   older accounts have no `%LOCALAPPDATA%` alias), the installer **copies the resolved alias
   into its own folder** (`$PSScriptRoot\ArcInputFixLifted.exe`) after `Add-AppxPackage` and
   points the `Run` value at that **fixed copy** — one absolute path shared by every user
-  (the copy is guarded against reparse-point 0-byte stubs). **The script's folder must
-  therefore be a PERSISTENT location** (e.g. `%ProgramFiles%`), not temp/removable. Use
+  (the copy uses the raw reparse buffer via `Copy-ReparsePoint`/FSCTL, since the alias is a
+  reparse point that `Copy-Item`/Explorer can't copy). **The script's folder must
+  therefore be a PERSISTENT location** (e.g. `%ProgramFiles%`), not temp/removable. A
+  **hardware gate** (`Test-ArcInputFixNeeded`) makes install a **no-op unless the affected
+  Intel Arc adapter is present** — it checks the Display-class registry key for an adapter
+  whose `MatchingDeviceId` starts with `PCI\VEN_8086&DEV_` **and** whose `InfSection`
+  contains `IAG_wNext_Dynamic` (e.g. `LNL_IAG_wNext_Dynamic`); `-Force` bypasses it. Use
   `-Scope CurrentUser -DevCert ...` for single-box dev/test. This is the Round-16 fix for
   the launch-context finding — use this instead of the scheduled task, which is proven not
   to re-arm the bug. `-Uninstall` removes the `Run` value and the alias copy. `-DevCert`.

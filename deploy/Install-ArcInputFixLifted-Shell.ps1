@@ -54,6 +54,11 @@
 
     Use -Uninstall to remove whatever this script created (both scopes / mechanisms).
 
+    HARDWARE GATE: install is a no-op unless the affected Intel Arc display adapter is
+    detected (an Intel PCI adapter - MatchingDeviceId PCI\VEN_8086&DEV_ - driven by the
+    Arc/Lunar-Lake 'IAG_wNext_Dynamic' INF section). This keeps a fleet-wide rollout safe
+    on machines that don't have the buggy GPU. Pass -Force to install regardless.
+
     NOTE: this REPLACES the scheduled-task approach for this helper. Use
     Install-ArcInputFixLifted.ps1 (the task version) only as a documented dead-end.
 
@@ -65,6 +70,9 @@
 
 .PARAMETER DevCert
     Optional path to ArcInputFixLifted.cer to trust (dev/test only).
+
+.PARAMETER Force
+    Install even when no affected Intel Arc adapter is detected (bypass the hardware gate).
 
 .EXAMPLE
     # Fleet rollout (DEFAULT): a CA-signed ArcInputFixLifted.msix sits beside this script;
@@ -99,6 +107,10 @@ param(
     [Parameter(ParameterSetName = 'Install')]
     [ValidateSet('Shortcut', 'Run')]
     [string] $Mechanism = 'Run',
+
+    # Install even when no affected Intel Arc adapter is detected (skip the hardware gate).
+    [Parameter(ParameterSetName = 'Install')]
+    [switch] $Force,
 
     [string] $PackageName = 'ArcInputFix.Lifted',
 
@@ -231,6 +243,34 @@ function Get-StartupDir {
     return [Environment]::GetFolderPath('Startup')
 }
 
+# Returns $true if the affected Intel Arc display adapter (the one that needs this fix) is
+# present. Display adapters are enumerated as 0000, 0001, ... under the Display class key.
+# An adapter needs the fix when its MatchingDeviceId is an Intel PCI device
+# (PCI\VEN_8086&DEV_) AND its InfSection driver is the Dynamic Intel Arc Graphics
+# 'IAG_wNext_Dynamic' section (e.g. Lunar Lake LNL_IAG_wNext_Dynamic on the Dell Pro Plus 268V).
+function Test-ArcInputFixNeeded {
+    $classKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
+    if (-not (Test-Path -LiteralPath $classKey)) { return $false }
+
+    foreach ($sub in Get-ChildItem -LiteralPath $classKey -ErrorAction SilentlyContinue) {
+        # Only the numeric per-adapter subkeys (0000, 0001, ...).
+        if ($sub.PSChildName -notmatch '^[0-9]{4}$') { continue }
+
+        $props = Get-ItemProperty -LiteralPath $sub.PSPath -ErrorAction SilentlyContinue
+        if ($null -eq $props) { continue }
+
+        $matchingId = [string] $props.MatchingDeviceId
+        $infSection = [string] $props.InfSection
+
+        if ($matchingId -like 'PCI\VEN_8086&DEV_*' -and $infSection -like '*IAG_wNext_Dynamic') {
+            $desc = [string] $props.DriverDesc
+            Write-Host "Detected affected Intel Arc adapter: '$desc' (InfSection '$infSection')." -ForegroundColor Green
+            return $true
+        }
+    }
+    return $false
+}
+
 function Remove-AliasShortcut {
     param([ValidateSet('CurrentUser', 'AllUsers')] [string] $Scope)
     $lnk = Join-Path (Get-StartupDir -Scope $Scope) $ShortcutLeaf
@@ -287,6 +327,21 @@ if ($Uninstall) {
         }
     }
     return
+}
+
+# ---------------------------------------------------------------------------
+# Hardware gate - only install where the affected Intel Arc adapter is present.
+# The bug is specific to that GPU/driver; on any other machine the fix is unneeded,
+# so skip it (unless -Force is given) to keep the fleet install a safe no-op.
+# ---------------------------------------------------------------------------
+if (-not $Force) {
+    if (-not (Test-ArcInputFixNeeded)) {
+        Write-Host "No affected Intel Arc display adapter detected - the fix is not needed on this machine." -ForegroundColor Yellow
+        Write-Host "Nothing installed. Use -Force to install anyway." -ForegroundColor Yellow
+        return
+    }
+} else {
+    Write-Host "-Force specified - skipping the Intel Arc hardware check." -ForegroundColor DarkYellow
 }
 
 # ---------------------------------------------------------------------------
@@ -394,6 +449,6 @@ switch ($Mechanism) {
 Write-Host ''
 Write-Host "Done. The interactive shell will launch the helper at the next logon." -ForegroundColor Cyan
 Write-Host "TEST: log off and back on, then - BEFORE touching anything - confirm the Clarion" -ForegroundColor Cyan
-Write-Host "      MDI child has working caption drag / border resize / min-max-close, with no" -ForegroundColor Cyan
-Write-Host "      flash. Also check Event Viewer > Windows Logs > Application, source" -ForegroundColor Cyan
-Write-Host "      'ArcInputFixLifted'." -ForegroundColor Cyan
+Write-Host "      MDI child window has working caption drag / border resize / min-max-close" -ForegroundColor Cyan
+Write-Host "      buttons working, and Clarion non-MDI window MENUBAR is clickable by mouse." -ForegroundColor Cyan
+Write-Host "      Also check Event Viewer > Windows Logs > Application, source 'ArcInputFixLifted'." -ForegroundColor Cyan

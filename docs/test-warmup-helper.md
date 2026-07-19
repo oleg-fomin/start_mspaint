@@ -252,6 +252,20 @@ provisions the package for all users and writes the HKLM `Run` value:
 .\deploy\Install-ArcInputFixLifted-Shell.ps1
 ```
 
+**Hardware gate (safe fleet-wide rollout).** The install is a **no-op unless the affected
+Intel Arc adapter is detected**, so the same script/`.msix` can be pushed to an entire fleet
+and only the buggy machines get the fix. The `Test-ArcInputFixNeeded` function enumerates the
+display adapters under
+`HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}` (the
+numeric `0000`, `0001`, ... subkeys) and returns `$true` when any adapter has **both**:
+
+- `MatchingDeviceId` starting with `PCI\VEN_8086&DEV_` (an Intel PCI display adapter), **and**
+- `InfSection` ending with `IAG_wNext_Dynamic` (the Arc / Lunar-Lake driver section, e.g.
+  `LNL_IAG_wNext_Dynamic` on the Dell Pro Plus 268V).
+
+If no such adapter is found the script prints a message and exits without installing. Pass
+**`-Force`** to bypass the gate and install anyway (dev/test or forced deployment).
+
 Uninstall (removes the shortcut / Run value and the package):
 
 ```powershell

@@ -655,3 +655,38 @@ NEXT (Dell, fresh broken logon): run src/ArcInputFixClarion/0release/ArcInputFix
   script next to the CA-signed .msix and run it elevated with NO PARAMETERS - it registers
   + provisions the package for all users and writes the HKLM Run key. Use
   `-Scope CurrentUser -DevCert ...` for single-box dev/test.
+- PROVISIONING GAP FOUND + FIXED (simple fixed-path alias copy): Add-AppxProvisionedPackage
+  (what -Scope AllUsers runs) only STAGES the package machine-wide and auto-registers it
+  for BRAND-NEW user profiles at first logon. PRE-EXISTING profiles are NOT auto-registered,
+  so their per-user App Execution Alias (%LOCALAPPDATA%\Microsoft\WindowsApps\
+  ArcInputFixLifted.exe) never appeared and the old per-user REG_EXPAND_SZ HKLM Run value
+  pointed at nothing (confirmed on the Dell: a second, pre-existing account had no alias
+  after a successful "Provisioned package for all (future) users" run).
+  - FIX (simplest workable approach): after Add-AppxPackage, the installer COPIES the
+    resolved alias (%LOCALAPPDATA%\Microsoft\WindowsApps\ArcInputFixLifted.exe) into ITS OWN
+    FOLDER ($PSScriptRoot\ArcInputFixLifted.exe) and points the HKLM/HKCU Run value at THAT
+    fixed copy - one absolute path shared by every user, so the launcher resolves even for
+    pre-existing accounts that never registered the package. The Run value is a plain String
+    (not REG_EXPAND_SZ) since the path is already absolute. explorer.exe still launches it at
+    logon, so the Round-16 shell-launch context that fixes the bug is preserved.
+  - The copy uses the RAW reparse buffer (FSCTL_GET/SET_REPARSE_POINT), NOT Copy-Item: a
+    WindowsApps App Execution Alias is a reparse point (IO_REPARSE_TAG_APPEXECLINK), so
+    Copy-Item / Explorer fail on it with "The file cannot be accessed by the system." The
+    installer's Copy-ReparsePoint helper copies the reparse data the way Far Manager does,
+    producing a working, launchable alias at the fixed path.
+  - DEPLOY REQUIREMENT: because the Run value targets the copy in the script's folder, that
+    folder must be a PERSISTENT location for the fleet (e.g. under %ProgramFiles% or a
+    managed share synced locally) - do not run the installer from a temp/removable path.
+  - -Uninstall removes the Run value AND the alias copy (plus the package/provisioning) when
+    elevated.
+- HARDWARE GATE (safe fleet-wide rollout): Install-ArcInputFixLifted-Shell.ps1 now installs
+  ONLY when the affected Intel Arc adapter is detected, so the same script + signed .msix can
+  be pushed to an entire fleet and only the buggy machines get the fix (no-op elsewhere).
+  - Test-ArcInputFixNeeded enumerates the display adapters under
+    HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318} (the
+    numeric 0000, 0001, ... subkeys) and returns True when any adapter has BOTH a
+    MatchingDeviceId starting with PCI\VEN_8086&DEV_ (Intel PCI display adapter) AND an
+    InfSection ending with IAG_wNext_Dynamic (the Arc/Lunar-Lake driver section, e.g.
+    LNL_IAG_wNext_Dynamic on the Dell Pro Plus 268V; see "Display Adapters.reg").
+  - If no affected adapter is found the script prints a message and exits WITHOUT installing.
+    Pass -Force to bypass the gate and install regardless (dev/test or forced deployment).
