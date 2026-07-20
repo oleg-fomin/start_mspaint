@@ -1,21 +1,21 @@
 # Test & deploy the owned warm-up helper (ArcInputFixWarmup)
 # Test the owned warm-up helper (ArcInputFixWarmup)
 
-> **STATUS: TESTED ON 268V HARDWARE — DOES NOT FIX THE BUG.** One run of the signed,
+> **STATUS: TESTED ON 268V HARDWARE â€” DOES NOT FIX THE BUG.** One run of the signed,
 > alias-launched helper did **not** re-arm Clarion caption drag / border resize /
 > min-max-close. So package identity + the in-box composition/input warm-up is
-> **necessary but not sufficient** — real packaged Paint does something more that this
+> **necessary but not sufficient** â€” real packaged Paint does something more that this
 > minimal helper does not. **Keep shipping the proven Paint-alias `ArcInputFix.exe`.**
 > This document and the helper are retained as a documented dead-end and a base for the
 > differential-diagnosis next step (see the bottom of this file).
 
 `ArcInputFixWarmup` was the owned, **package-identity** attempt to stop depending on
 Microsoft Paint. It is a windowless Win32 exe that spins up the same in-box stack a
-packaged WinUI 3 app does — `CreateDispatcherQueueController` +
+packaged WinUI 3 app does â€” `CreateDispatcherQueueController` +
 `Windows.UI.Composition.Compositor` + `ICompositorDesktopInterop` /
-`IDesktopWindowTarget` on a hidden top-level window — then exits. The MSIX wrapper
+`IDesktopWindowTarget` on a hidden top-level window â€” then exits. The MSIX wrapper
 (`runFullTrust` `Windows.FullTrustApplication` + an App Execution Alias) gives it package
-identity, and the logon task launches it via that alias — the same
+identity, and the logon task launches it via that alias â€” the same
 CreateProcess-with-identity path the Paint alias uses. It satisfies **all three**
 necessary conditions of the deduced root-cause signature, yet on the 268V hardware it
 still did not fix the session.
@@ -24,14 +24,14 @@ still did not fix the session.
 
 | Option | Verdict |
 | --- | --- |
-| **WinUI 3 "Blank App, Packaged (WinUI 3 in Desktop)"** | Overkill. Pulls in the Windows App SDK runtime dependency, XAML, an `App`/`Window` you'd have to suppress, and a visible window to hide. We don't need XAML — only the **in-box** CoreMessaging + `Windows.UI.Composition` stack, which is present on every Windows 11 box with no redistributable. |
+| **WinUI 3 "Blank App, Packaged (WinUI 3 in Desktop)"** | Overkill. Pulls in the Windows App SDK runtime dependency, XAML, an `App`/`Window` you'd have to suppress, and a visible window to hide. We don't need XAML â€” only the **in-box** CoreMessaging + `Windows.UI.Composition` stack, which is present on every Windows 11 box with no redistributable. |
 | **Single-project MSIX (packaged WinUI 3)** | Same SDK/XAML baggage as above; convenient in VS but heavier than required for a headless helper. |
 | **Sparse package over an existing exe** | A sparse/external-location package still needs a signed identity *and* an `externalLocation` registration; it adds complexity without removing the real requirement (identity). |
-| **? Plain GUI-subsystem Win32 exe + classic `AppxManifest.xml` MSIX (this project)** | Minimal. No Windows App SDK, no NuGet, static CRT, one `.cpp`. Gets **package identity** via the MSIX wrapper, and runs the exact in-box composition/input warm-up. Windowless, so no flash. Sign-ready. (Chosen as the smallest thing that supplies identity — but see the status banner: it was **not enough** on hardware.) |
+| **? Plain GUI-subsystem Win32 exe + classic `AppxManifest.xml` MSIX (this project)** | Minimal. No Windows App SDK, no NuGet, static CRT, one `.cpp`. Gets **package identity** via the MSIX wrapper, and runs the exact in-box composition/input warm-up. Windowless, so no flash. Sign-ready. (Chosen as the smallest thing that supplies identity â€” but see the status banner: it was **not enough** on hardware.) |
 
 The reasoning at build time was: the identity-less version of this warm-up did not fix
 the session, so package identity must be the missing ingredient. **The 268V test
-disproved that** — the helper has identity *and* the warm-up and still fails. The real
+disproved that** â€” the helper has identity *and* the warm-up and still fails. The real
 differentiator is something else packaged Paint does; it is not yet identified.
 
 ## Build (dev/test)
@@ -74,7 +74,7 @@ differential-diagnosis next step.
 1. **Reproduce the break.** Reboot and log in. Open the Clarion app and confirm an MDI
    child window is broken: caption **drag** does nothing, **border resize** does
    nothing, and the **min/max/close** caption buttons don't respond. (Do *not* run
-   Paint — that would mask the test.)
+   Paint â€” that would mask the test.)
 2. **Trust the dev cert once** (only for self-signed dev builds), elevated:
    ```powershell
    Import-Certificate -FilePath .\src\ArcInputFixWarmup\ArcInputFixWarmup.cer `
@@ -89,7 +89,7 @@ differential-diagnosis next step.
    ```powershell
    Start-ScheduledTask -TaskName ArcInputFixWarmup
    ```
-   Or launch the alias directly the way the task does — this is the proven path:
+   Or launch the alias directly the way the task does â€” this is the proven path:
    ```powershell
    & "$env:LOCALAPPDATA\Microsoft\WindowsApps\ArcInputFixWarmup.exe"
    ```
@@ -107,7 +107,7 @@ differential-diagnosis next step.
 
 The helper runs and exits cleanly (event-log line written, no visible window), but
 Clarion caption drag, border resize, and min/max/close **stay broken**. Launching
-packaged Paint (or the proven `ArcInputFix.exe`) in the same session still fixes it —
+packaged Paint (or the proven `ArcInputFix.exe`) in the same session still fixes it â€”
 confirming the session was genuinely in the broken state and that Paint, not the helper,
 carries the missing ingredient.
 
@@ -116,9 +116,9 @@ carries the missing ingredient.
 `tools/Capture-Modules.ps1` has **already been run on the Dell**; its output is in
 `tools/fixdiff-out/`:
 
-- `mspaint-modules.csv` — every DLL real packaged Paint loaded.
-- `mspaint-children.csv` — empty (Paint is in-process; no child host process).
-- `services-{before,during,after}.csv`, `processes-*.csv`, `drivers-*.csv` — state diffs
+- `mspaint-modules.csv` â€” every DLL real packaged Paint loaded.
+- `mspaint-children.csv` â€” empty (Paint is in-process; no child host process).
+- `services-{before,during,after}.csv`, `processes-*.csv`, `drivers-*.csv` â€” state diffs
   around the Paint launch (the service deltas are Store-activation noise; see README
   Round 4).
 
@@ -133,13 +133,13 @@ App SDK 1.8 `Microsoft.UI.*` input/composition stack**:
 all from `Microsoft.WindowsAppRuntime.1.8`. **Our helper used only the in-box
 `Windows.UI.Composition.Compositor`** (deliberately, to avoid a NuGet / Windows App SDK
 dependency) and therefore never loaded the lifted `Microsoft.UI.Input` /
-`InputStateManager` stack — the most likely missing ingredient.
+`InputStateManager` stack â€” the most likely missing ingredient.
 
 So the next hypothesis to test (just one, not another blind warm-up): a package-identity
 helper that initialises the **lifted Microsoft.UI input stack**. **That helper is now
-built** — see `src/ArcInputFixLifted/` and the next section.
+built** â€” see `src/ArcInputFixLifted/` and the next section.
 
-## ArcInputFixLifted — the lifted-stack helper (next hypothesis, awaiting 268V test)
+## ArcInputFixLifted â€” the lifted-stack helper (next hypothesis, awaiting 268V test)
 
 `src/ArcInputFixLifted/` is a real **WinUI 3** (C#, Windows App SDK 1.8) helper. Being an
 actual WinUI 3 app, it loads the **same lifted `Microsoft.UI.*` stack packaged Paint
@@ -149,12 +149,12 @@ does** (verified: the self-contained publish carries `Microsoft.UI.Input.dll`,
 `CoreMessagingXP.dll`, `dcompi.dll`, `dwmcorei.dll`, `wuceffectsi.dll`). On launch it
 creates a WinUI 3 `Window` (off-screen, hidden via the lifted `AppWindow`), explicitly
 arms the lifted **non-client** pointer input owner
-(`InputNonClientPointerSource.GetForWindowId`) — the exact subsystem the bug disables —
+(`InputNonClientPointerSource.GetForWindowId`) â€” the exact subsystem the bug disables â€”
 dwells ~3 s, then exits. It is wrapped in a signed MSIX (same pack/sign pipeline as
 `ArcInputFixWarmup`) for package identity and launched at logon via its App Execution
 Alias.
 
-This reverses the original "in-box only / no NuGet" choice — which is exactly why
+This reverses the original "in-box only / no NuGet" choice â€” which is exactly why
 `ArcInputFixWarmup` missed the lifted stack.
 
 ### Build
@@ -165,7 +165,7 @@ build.cmd
 ```
 
 `build.cmd` runs `dotnet publish -c Release -r win-x64` (self-contained, so the lifted
-runtime ships in the package — no fleet WindowsAppRuntime dependency), overlays
+runtime ships in the package â€” no fleet WindowsAppRuntime dependency), overlays
 `AppxManifest.xml` + placeholder assets, `makeappx pack` -> `ArcInputFixLifted.msix`, and
 signs it (self-signed dev cert by default; set `SIGN_PFX` for a release cert). For
 release, make `AppxManifest.xml`'s `Identity/Publisher` match the cert subject exactly.
@@ -222,13 +222,13 @@ Removes the scheduled task and the registered package.
 The fix requires the helper to be launched **by the interactive shell (`explorer.exe`)
 inside the user's interactive logon session**, not spawned by the Task Scheduler service
 host. (This matches the earlier paradox where broker activation fixed the bug from
-`powershell.exe` but not from a plain service-spawned Win32 exe — the differentiator was
+`powershell.exe` but not from a plain service-spawned Win32 exe â€” the differentiator was
 always interactive-shell launch context.)
 
 ### Reproduce the working context automatically at logon
 
 `explorer.exe` is what executes **Startup-folder shortcuts** and **`...\CurrentVersion\Run`
-values** at logon — the exact same launch path as a double-click. So we install one of
+values** at logon â€” the exact same launch path as a double-click. So we install one of
 those instead of a scheduled task.
 
 ```powershell
@@ -274,7 +274,7 @@ Uninstall (removes the shortcut / Run value and the package):
 
 ### Quick diagnostics (confirm the hypothesis without a reboot)
 
-In the interactive session, before relogon, launch the alias from each of these — all are
+In the interactive session, before relogon, launch the alias from each of these â€” all are
 explorer/interactive launches and are expected to fix the bug:
 
 - a normal (non-elevated) **PowerShell** window: `& "$env:LOCALAPPDATA\Microsoft\WindowsApps\ArcInputFixLifted.exe"`
@@ -286,14 +286,14 @@ will work at logon.
 ### Outcome
 
 > **RESULT: PASS (confirmed on 268V).** The CurrentUser Startup-folder shortcut DID fix
-> the bug at logon — `explorer.exe` launches it, the same proven double-click context.
+> the bug at logon â€” `explorer.exe` launches it, the same proven double-click context.
 > Caption drag / border resize / min-max-close all work and persist for the session, with
 > no visible flash. `ArcInputFixLifted` is therefore a **shippable, Paint-independent
 > fix**; the only requirement is the explorer/interactive-shell launch context.
 
-#### Timing nuance (expected — not a bug)
+#### Timing nuance (expected â€” not a bug)
 
-The Startup shortcut fired **~12–15 s after logon**, not instantly. That delay is
+The Startup shortcut fired **~12â€“15 s after logon**, not instantly. That delay is
 Windows' shell **startup-app throttle**: `explorer.exe` intentionally defers
 **Startup-folder** items several seconds after the desktop appears (the same mechanism
 behind the "these apps are slowing down startup" notice). The fix persists once it lands,
@@ -302,13 +302,13 @@ so applying it ~15 s in is harmless for the rest of the session. The only caveat
 
 To make the fix land **earlier** (shrink that window):
 
-- The **`Run`-key** mechanism is now the **default** for exactly this reason — `Run`
+- The **`Run`-key** mechanism is now the **default** for exactly this reason â€” `Run`
   values are processed earlier in shell init and are **not** subject to the Startup-folder
   deferral, while still being launched by `explorer.exe` (same context). The plain install
   above already uses it; pass `-Mechanism Shortcut` only if you specifically want the
   (throttled) Startup-folder path that matched the original double-click test.
 - If even earlier is required, fallback option 2 (a task that **delegates** the launch to
-  the running `explorer.exe`) can fire as soon as the shell is up — weigh that against its
+  the running `explorer.exe`) can fire as soon as the shell is up â€” weigh that against its
   extra fragility.
 
 #### Ship path now
@@ -343,5 +343,5 @@ non-empty) because WindowsApps aliases are reparse points and a naive copy could
 dead 0-byte stub. `-Uninstall` removes the `Run` value and the alias copy.
 
 - **If a logon test ever fails** (but the manual double-click works): the trigger is even
-  narrower than "explorer-launched" — instrument the working double-click vs the
+  narrower than "explorer-launched" â€” instrument the working double-click vs the
   Startup/Run launch with Procmon and diff parent process / token / window-station.

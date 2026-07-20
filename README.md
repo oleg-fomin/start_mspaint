@@ -1,11 +1,11 @@
 # Plan: Logon utility to fix Intel Arc NC-mouse bug
 
-> **Status:** shipped alias fix — see [docs/handoff-visual-studio.md](docs/handoff-visual-studio.md).
-
 ## Context
 - Hardware: Dell Pro Plus, Core Ultra 7 268V (Lunar Lake), Intel Arc 140V iGPU, Windows 11.
-- Symptom: Clarion MDI child windows only respond to mouse in the CLIENT area.
-  Caption drag + border resize (NON-CLIENT area) dead until mspaint.exe is run once.
+- Symptom: Clarion non-MDI windows do not respond to mouse clicks/hover on MENUBAR area.
+  Besides, Clarion MDI child windows only respond to mouse in the CLIENT area.
+  Caption drag + min-max-close + border resize (NON-CLIENT area) dead until **mspaint.exe** is run 
+  once - see [IntelArcTestMenu.mp4](https://oleg-fomin.github.io/start_mspaint/mp4/IntelArcTestMenu.mp4).
   Fix persists for the whole logon session.
 - Existing workaround: start_mspaint.ps1 launches mspaint hidden (CreateProcess
   SW_HIDE or packaged-app activation), waits 5s, TerminateProcess. Works but
